@@ -1,0 +1,187 @@
+---
+title: "EngineManager"
+description: "Engine subprocess lifecycle management, binary discovery, and protocol communication."
+---
+
+The `EngineManager` class manages the lifecycle of the `attest-engine` Go subprocess. It handles binary discovery, process spawning, JSON-RPC communication, and graceful shutdown.
+
+## Usage
+
+```python
+from attest.engine_manager import EngineManager
+
+async with EngineManager() as engine:
+    result = await engine.send_request("evaluate_batch", params)
+```
+
+In practice, the pytest plugin manages the engine automatically via the `attest_engine` fixture. Direct usage of `EngineManager` is needed for custom integrations or the `ContinuousEvalRunner`.
+
+## Constructor
+
+```python
+EngineManager(
+    engine_path: str | None = None,
+    log_level: str = "warn",
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `engine_path` | `str \| None` | `None` | Explicit path to the `attest-engine` binary. When `None`, uses the discovery chain. |
+| `log_level` | `str` | `"warn"` | Engine log verbosity: `debug`, `info`, `warn`, `error` |
+
+## Binary Discovery Chain
+
+When `engine_path` is not provided, the SDK searches for the binary in this order:
+
+| Priority | Source | Details |
+|----------|--------|---------|
+| 1 | `ATTEST_ENGINE_PATH` env var | Absolute path override. Raises `FileNotFoundError` if the file does not exist. |
+| 2 | `PATH` lookup | Uses `shutil.which("attest-engine")` |
+| 3 | `~/.attest/bin/` | Shared cache with version check via `.engine-version` marker file |
+| 4 | Monorepo layout | `../../bin/attest-engine` relative to the SDK package |
+| 5 | Local `./bin/` | `./bin/attest-engine` in the current working directory |
+| 6 | Auto-download | Downloads from GitHub Releases with SHA256 verification |
+| 7 | Error | `FileNotFoundError` with actionable install instructions |
+
+:::tip
+Set `ATTEST_ENGINE_NO_DOWNLOAD=1` to disable auto-download (step 6). Useful in CI environments where you pre-install the binary.
+:::
+
+### Auto-Download
+
+When no binary is found, the SDK downloads it from GitHub Releases:
+
+1. Fetches `checksums-sha256.txt` for the target `ENGINE_VERSION`
+2. Downloads the platform-specific binary (`darwin-arm64`, `linux-amd64`, etc.)
+3. Verifies SHA256 checksum
+4. Atomic write to `~/.attest/bin/attest-engine`
+5. Writes `.engine-version` marker for cache validation
+
+Supported platforms:
+
+| OS | Architecture | Asset Name |
+|----|-------------|------------|
+| macOS | ARM64 (Apple Silicon) | `attest-engine-darwin-arm64` |
+| macOS | x86_64 (Intel) | `attest-engine-darwin-amd64` |
+| Linux | ARM64 | `attest-engine-linux-arm64` |
+| Linux | x86_64 | `attest-engine-linux-amd64` |
+| Windows | AMD64 | `attest-engine-windows-amd64.exe` |
+| Windows | ARM64 | `attest-engine-windows-arm64.exe` |
+
+## Lifecycle Methods
+
+### `start() -> InitializeResult`
+
+Spawns the engine subprocess and sends the `initialize` JSON-RPC request.
+
+```python
+engine = EngineManager()
+init_result = await engine.start()
+
+print(init_result.engine_version)           # "0.4.0"
+print(init_result.capabilities)             # ["layers_1_4", ...]
+print(init_result.max_concurrent_requests)  # 64
+print(init_result.max_trace_size_bytes)     # 10485760
+print(init_result.max_steps_per_trace)      # 10000
+```
+
+Raises `RuntimeError` if the engine reports incompatible capabilities.
+
+### `stop()`
+
+Sends the `shutdown` JSON-RPC request, then terminates the process.
+
+```python
+await engine.stop()
+```
+
+If the shutdown request fails, the process is terminated. If termination times out after 5 seconds, the process is killed.
+
+### Async Context Manager
+
+The recommended pattern. `start()` is called on `__aenter__`, `stop()` on `__aexit__`.
+
+```python
+async with EngineManager(log_level="debug") as engine:
+    # Engine is initialized and ready
+    result = await engine.send_request("evaluate_batch", params)
+# Engine is stopped
+```
+
+### `send_request(method: str, params: dict) -> Any`
+
+Send a JSON-RPC 2.0 request and return the result.
+
+```python
+result = await engine.send_request("evaluate_batch", {
+    "trace": trace.to_dict(),
+    "assertions": [a.to_dict() for a in assertions],
+})
+```
+
+Raises `RuntimeError` if the engine has not been initialized (except for the `initialize` method itself).
+
+### `is_running: bool`
+
+Property that returns `True` if the subprocess is alive.
+
+## InitializeResult
+
+The response from the engine's `initialize` method:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `engine_version` | `str` | Engine binary version (e.g., `"0.4.0"`) |
+| `protocol_version` | `int` | Protocol version (currently `1`) |
+| `capabilities` | `list[str]` | Supported capability strings |
+| `missing` | `list[str]` | Requested capabilities not available |
+| `compatible` | `bool` | `True` if all required capabilities are present |
+| `encoding` | `str` | Wire encoding (`"json"`) |
+| `max_concurrent_requests` | `int` | Max parallel evaluations (default `64`) |
+| `max_trace_size_bytes` | `int` | Max trace payload (default 10 MB) |
+| `max_steps_per_trace` | `int` | Max steps per trace (default `10000`) |
+
+## Pytest Integration
+
+The engine lifecycle is handled by the `attest_engine` session-scoped fixture:
+
+```python
+# conftest.py — no manual setup needed
+# The attest pytest plugin auto-registers fixtures
+
+def test_agent(attest):
+    result = my_agent(query="test")
+    chain = expect(result).output_contains("test")
+    agent_result = attest.evaluate(chain)
+    assert agent_result.passed
+```
+
+The fixture accepts CLI options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--attest-engine` | auto-discover | Path to engine binary |
+| `--attest-log-level` | `warn` | Engine log level |
+| `--attest-tier` | all | Only run tests up to this tier |
+| `--attest-budget` | unlimited | Abort if cumulative cost exceeds USD amount |
+| `--attest-cost-report` | off | Print cost summary at session end |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ATTEST_ENGINE_PATH` | Override binary location (takes highest priority) |
+| `ATTEST_ENGINE_NO_DOWNLOAD` | Set to `1` to disable auto-download |
+| `ATTEST_SIMULATION` | Set to `1` to skip engine entirely (deterministic results) |
+
+## Version Decoupling
+
+The SDK version (`__version__`) and engine version (`ENGINE_VERSION`) are independent. SDK `0.4.2` ships with `ENGINE_VERSION = "0.4.0"`. The auto-downloader uses `ENGINE_VERSION` to construct the GitHub release URL, not the SDK version. This allows SDK-only releases without requiring new engine binaries.
+
+```python
+from attest import __version__, ENGINE_VERSION
+
+print(__version__)      # "0.4.2"
+print(ENGINE_VERSION)   # "0.4.0"
+```

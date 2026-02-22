@@ -1,0 +1,720 @@
+---
+title: "TypeScript Expect DSL"
+description: "Complete reference for attestExpect() and the ExpectChain fluent API in the TypeScript SDK."
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+> **Python equivalent:** [Python Expect DSL](/reference/python/expect-dsl/)
+
+The Expect DSL provides a fluent, chainable API to declare assertions against agent traces. Assertions are batched and sent to the Attest engine for evaluation.
+
+## Installation
+
+```bash
+pnpm add @attest-ai/core
+# or with vitest integration
+pnpm add @attest-ai/vitest
+```
+
+## Import
+
+```typescript
+import { attestExpect } from '@attest-ai/core';
+
+// Or via vitest integration (re-exports the same function)
+import { attestExpect } from '@attest-ai/vitest';
+```
+
+## `attestExpect()`
+
+Creates an `ExpectChain` for declaring assertions against an agent result or trace.
+
+```typescript
+function attestExpect(result: AgentResult | Trace): ExpectChain
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `result` | `AgentResult \| Trace` | The agent result or raw trace to assert against. A raw `Trace` is auto-wrapped in `AgentResult`. |
+
+**Returns:** `ExpectChain` — a fluent builder. Chain assertion methods, then pass to `evaluate()`.
+
+```typescript
+const chain = attestExpect(result)
+  .outputContains("hello")
+  .latencyUnder(5000)
+  .tokensUnder(1000);
+
+const evaluated = await evaluate(chain);
+expect(evaluated.passed).toBe(true);
+```
+
+## `ExpectChain` Properties
+
+### `assertions`
+
+```typescript
+get assertions(): Assertion[]
+```
+
+Returns a copy of all assertions added to the chain.
+
+### `trace`
+
+```typescript
+get trace(): Trace
+```
+
+Returns the underlying trace from the wrapped `AgentResult`.
+
+---
+
+## Layer 1: Schema Assertions
+
+Schema assertions validate structural properties of output and tool interactions using JSON Schema.
+
+### `outputMatchesSchema()`
+
+Validates the entire structured output against a JSON Schema.
+
+```typescript
+outputMatchesSchema(schema: Record<string, unknown>): this
+```
+
+```typescript
+attestExpect(result).outputMatchesSchema({
+  type: "object",
+  required: ["name", "age"],
+  properties: {
+    name: { type: "string" },
+    age: { type: "number", minimum: 0 },
+  },
+});
+```
+
+### `outputFieldMatchesSchema()`
+
+Validates a single field of the output against a JSON Schema.
+
+```typescript
+outputFieldMatchesSchema(field: string, schema: Record<string, unknown>): this
+```
+
+```typescript
+attestExpect(result).outputFieldMatchesSchema("recommendations", {
+  type: "array",
+  items: { type: "string" },
+  minItems: 1,
+});
+```
+
+### `toolArgsMatchSchema()`
+
+Validates the arguments passed to a specific tool call.
+
+```typescript
+toolArgsMatchSchema(toolName: string, schema: Record<string, unknown>): this
+```
+
+```typescript
+attestExpect(result).toolArgsMatchSchema("search", {
+  type: "object",
+  required: ["query"],
+  properties: {
+    query: { type: "string", minLength: 1 },
+  },
+});
+```
+
+### `toolResultMatchesSchema()`
+
+Validates the result returned by a specific tool call.
+
+```typescript
+toolResultMatchesSchema(toolName: string, schema: Record<string, unknown>): this
+```
+
+```typescript
+attestExpect(result).toolResultMatchesSchema("search", {
+  type: "object",
+  required: ["results"],
+  properties: {
+    results: { type: "array" },
+  },
+});
+```
+
+---
+
+## Layer 2: Constraint Assertions
+
+Constraint assertions enforce numeric bounds on cost, latency, tokens, and step counts. All support a `soft` option: soft failures are warnings, not test failures.
+
+### `costUnder()`
+
+Asserts total cost is at or below a threshold (USD).
+
+```typescript
+costUnder(maxCost: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).costUnder(0.05);
+attestExpect(result).costUnder(0.10, { soft: true }); // warning only
+```
+
+### `latencyUnder()`
+
+Asserts total latency is at or below a threshold (milliseconds).
+
+```typescript
+latencyUnder(maxMs: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).latencyUnder(3000);
+```
+
+### `tokensUnder()`
+
+Asserts total token usage is at or below a threshold.
+
+```typescript
+tokensUnder(maxTokens: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).tokensUnder(2000);
+```
+
+### `tokensBetween()`
+
+Asserts total token usage falls within a range (inclusive).
+
+```typescript
+tokensBetween(minTokens: number, maxTokens: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).tokensBetween(100, 2000);
+```
+
+### `stepCount()`
+
+Asserts the total number of steps matches an operator/value pair.
+
+```typescript
+stepCount(operator: string, value: number, opts?: { soft?: boolean }): this
+```
+
+Supported operators: `"eq"`, `"lte"`, `"gte"`, `"lt"`, `"gt"`, `"between"`.
+
+```typescript
+attestExpect(result).stepCount("lte", 5);
+attestExpect(result).stepCount("eq", 3);
+```
+
+### `toolCallCount()`
+
+Asserts the number of tool call steps matches an operator/value pair.
+
+```typescript
+toolCallCount(operator: string, value: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).toolCallCount("gte", 1);
+attestExpect(result).toolCallCount("lte", 3);
+```
+
+### `constraint()`
+
+Generic constraint for arbitrary trace fields.
+
+```typescript
+constraint(
+  field: string,
+  operator: string,
+  opts?: { value?: number; min?: number; max?: number; soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).constraint("metadata.cost_usd", "lte", { value: 0.01 });
+attestExpect(result).constraint("metadata.total_tokens", "between", {
+  min: 50,
+  max: 500,
+});
+```
+
+---
+
+## Layer 3: Trace Assertions
+
+Trace assertions validate the sequence and composition of tool calls within a trace.
+
+### `toolsCalledInOrder()`
+
+Asserts that the named tools appear in the trace in the given order (other tools may appear between them).
+
+```typescript
+toolsCalledInOrder(tools: string[], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).toolsCalledInOrder(["search", "summarize"]);
+```
+
+### `toolsCalledExactly()`
+
+Asserts the exact ordered sequence of tool calls — no extra tools allowed.
+
+```typescript
+toolsCalledExactly(tools: string[], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).toolsCalledExactly(["search", "rank", "format"]);
+```
+
+### `noToolLoops()`
+
+Asserts a tool is not called more than `maxRepetitions` consecutive times.
+
+```typescript
+noToolLoops(tool: string, maxRepetitions?: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).noToolLoops("retry_fetch", 2);
+```
+
+### `noDuplicateTools()`
+
+Asserts no tool is called more than once across the entire trace.
+
+```typescript
+noDuplicateTools(opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).noDuplicateTools();
+```
+
+### `requiredTools()`
+
+Asserts that all specified tools appear in the trace (in any order).
+
+```typescript
+requiredTools(tools: string[], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).requiredTools(["validate_input", "generate_response"]);
+```
+
+### `forbiddenTools()`
+
+Asserts that none of the specified tools appear in the trace.
+
+```typescript
+forbiddenTools(tools: string[], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).forbiddenTools(["delete_user", "drop_table"]);
+```
+
+---
+
+## Layer 4: Content Assertions
+
+Content assertions inspect the textual content of outputs.
+
+### `outputContains()`
+
+Asserts the output message contains a substring.
+
+```typescript
+outputContains(value: string, opts?: { caseSensitive?: boolean; soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).outputContains("recommendation");
+attestExpect(result).outputContains("JSON", { caseSensitive: true });
+```
+
+### `outputNotContains()`
+
+Asserts the output message does not contain a substring.
+
+```typescript
+outputNotContains(value: string, opts?: { caseSensitive?: boolean; soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).outputNotContains("error");
+```
+
+### `outputMatchesRegex()`
+
+Asserts the output message matches a regular expression pattern.
+
+```typescript
+outputMatchesRegex(pattern: string, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).outputMatchesRegex("\\d{3}-\\d{4}");
+```
+
+### `outputHasAllKeywords()`
+
+Asserts the output contains all specified keywords.
+
+```typescript
+outputHasAllKeywords(
+  keywords: string[],
+  opts?: { caseSensitive?: boolean; soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).outputHasAllKeywords(["price", "availability", "shipping"]);
+```
+
+### `outputHasAnyKeyword()`
+
+Asserts the output contains at least one of the specified keywords.
+
+```typescript
+outputHasAnyKeyword(
+  keywords: string[],
+  opts?: { caseSensitive?: boolean; soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).outputHasAnyKeyword(["yes", "confirmed", "approved"]);
+```
+
+### `outputForbids()`
+
+Asserts the output does not contain any of the specified terms. Always a hard failure.
+
+```typescript
+outputForbids(terms: string[]): this
+```
+
+```typescript
+attestExpect(result).outputForbids(["password", "ssn", "credit card"]);
+```
+
+### `contentContains()`
+
+Generic content check against an arbitrary trace target path.
+
+```typescript
+contentContains(
+  target: string,
+  value: string,
+  opts?: { caseSensitive?: boolean; soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).contentContains("steps[0].result.completion", "success");
+```
+
+---
+
+## Layer 5: Embedding Similarity
+
+Embedding assertions compare semantic similarity between the output and a reference string. Requires an embedding provider.
+
+### `outputSimilarTo()`
+
+Asserts the output is semantically similar to a reference text.
+
+```typescript
+outputSimilarTo(
+  reference: string,
+  opts?: { threshold?: number; model?: string; soft?: boolean },
+): this
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `threshold` | `number` | `0.8` | Minimum cosine similarity score (0.0 to 1.0) |
+| `model` | `string` | Provider default | Embedding model override |
+| `soft` | `boolean` | `false` | Treat failure as warning |
+
+```typescript
+attestExpect(result).outputSimilarTo(
+  "The product is available and ships within 2 business days",
+  { threshold: 0.85 },
+);
+```
+
+:::note
+Layer 5 assertions incur API costs for embedding generation. Use deterministic layers (1-4) when possible.
+:::
+
+---
+
+## Layer 6: LLM Judge
+
+LLM judge assertions use a language model to evaluate output quality against criteria. Most expensive assertion layer.
+
+### `passesJudge()`
+
+Asserts the output passes an LLM judge evaluation.
+
+```typescript
+passesJudge(
+  criteria: string,
+  opts?: { rubric?: string; threshold?: number; model?: string; soft?: boolean },
+): this
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rubric` | `string` | `"default"` | Evaluation rubric name |
+| `threshold` | `number` | `0.8` | Minimum judge score (0.0 to 1.0) |
+| `model` | `string` | Provider default | Judge model override |
+| `soft` | `boolean` | `false` | Treat failure as warning |
+
+```typescript
+attestExpect(result).passesJudge(
+  "Response is helpful, accurate, and addresses all parts of the user question",
+  { threshold: 0.9 },
+);
+
+attestExpect(result).passesJudge("Response does not contain hallucinated facts", {
+  rubric: "factuality",
+  model: "gpt-4.1",
+});
+```
+
+:::note
+Layer 6 assertions incur LLM API costs. Use deterministic layers (1-4) before resorting to judge assertions.
+:::
+
+---
+
+## Layer 7: Trace Tree (Multi-Agent)
+
+Trace tree assertions validate multi-agent delegation patterns, cross-agent data flow, and aggregate metrics across the full agent tree.
+
+### `agentCalled()`
+
+Asserts a specific agent was invoked somewhere in the trace tree.
+
+```typescript
+agentCalled(agentId: string, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).agentCalled("researcher");
+```
+
+### `delegationDepth()`
+
+Asserts the maximum delegation depth does not exceed a limit.
+
+```typescript
+delegationDepth(maxDepth: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).delegationDepth(3);
+```
+
+### `agentOutputContains()`
+
+Asserts a specific agent's output contains a substring.
+
+```typescript
+agentOutputContains(
+  agentId: string,
+  value: string,
+  opts?: { caseSensitive?: boolean; soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).agentOutputContains("summarizer", "conclusion");
+```
+
+### `crossAgentDataFlow()`
+
+Asserts data flows from one agent to another through a specific field.
+
+```typescript
+crossAgentDataFlow(
+  fromAgent: string,
+  toAgent: string,
+  field: string,
+  opts?: { soft?: boolean },
+): this
+```
+
+```typescript
+attestExpect(result).crossAgentDataFlow("researcher", "writer", "findings");
+```
+
+### `followsTransitions()`
+
+Asserts the agent delegation graph contains specific parent-child transitions.
+
+```typescript
+followsTransitions(transitions: [string, string][], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).followsTransitions([
+  ["orchestrator", "researcher"],
+  ["orchestrator", "writer"],
+]);
+```
+
+### `aggregateCostUnder()`
+
+Asserts the total cost across all agents in the tree is at or below a threshold.
+
+```typescript
+aggregateCostUnder(maxCost: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).aggregateCostUnder(0.50);
+```
+
+### `aggregateTokensUnder()`
+
+Asserts the total token usage across all agents in the tree is at or below a threshold.
+
+```typescript
+aggregateTokensUnder(maxTokens: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).aggregateTokensUnder(10000);
+```
+
+### `agentOrderedBefore()`
+
+Asserts one agent completed before another started.
+
+```typescript
+agentOrderedBefore(agentA: string, agentB: string, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).agentOrderedBefore("planner", "executor");
+```
+
+### `agentsOverlap()`
+
+Asserts two agents had overlapping execution windows (ran concurrently).
+
+```typescript
+agentsOverlap(agentA: string, agentB: string, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).agentsOverlap("researcher_a", "researcher_b");
+```
+
+### `agentWallTimeUnder()`
+
+Asserts a specific agent's wall-clock execution time is under a threshold.
+
+```typescript
+agentWallTimeUnder(agentId: string, maxMs: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).agentWallTimeUnder("summarizer", 5000);
+```
+
+### `orderedAgents()`
+
+Asserts agents execute in ordered groups. Agents within the same group may run in any order, but groups execute sequentially.
+
+```typescript
+orderedAgents(groups: string[][], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).orderedAgents([
+  ["planner"],                         // Phase 1
+  ["researcher_a", "researcher_b"],    // Phase 2 (parallel)
+  ["writer"],                          // Phase 3
+]);
+```
+
+---
+
+## Full Example
+
+```typescript
+import { attestExpect, agent, TraceBuilder } from '@attest-ai/core';
+import { evaluate } from '@attest-ai/vitest';
+import { describe, it, expect } from 'vitest';
+
+const myAgent = agent("assistant", (builder, args) => {
+  builder.addLlmCall("gpt-4.1", {
+    args: { prompt: args.question },
+    result: { completion: "Paris is the capital of France." },
+  });
+  builder.addToolCall("fact_check", {
+    args: { claim: "Paris is the capital of France" },
+    result: { verified: true },
+  });
+  return { message: "Paris is the capital of France." };
+});
+
+describe("assistant agent", () => {
+  it("produces correct, efficient output", async () => {
+    const result = myAgent({ question: "What is the capital of France?" });
+
+    const chain = attestExpect(result)
+      // Layer 1: Schema
+      .outputMatchesSchema({
+        type: "object",
+        required: ["message"],
+        properties: { message: { type: "string" } },
+      })
+      // Layer 2: Constraints
+      .tokensUnder(500)
+      .costUnder(0.01)
+      // Layer 3: Trace
+      .requiredTools(["fact_check"])
+      .forbiddenTools(["delete_data"])
+      // Layer 4: Content
+      .outputContains("Paris")
+      .outputNotContains("error");
+
+    const evaluated = await evaluate(chain);
+    expect(evaluated.passed).toBe(true);
+  });
+});
+```
+
+---
+
+## Assertion Layer Summary
+
+| Layer | Type | Cost | Methods |
+|-------|------|------|---------|
+| 1 | Schema | Free | `outputMatchesSchema`, `outputFieldMatchesSchema`, `toolArgsMatchSchema`, `toolResultMatchesSchema` |
+| 2 | Constraint | Free | `costUnder`, `latencyUnder`, `tokensUnder`, `tokensBetween`, `stepCount`, `toolCallCount`, `constraint` |
+| 3 | Trace | Free | `toolsCalledInOrder`, `toolsCalledExactly`, `noToolLoops`, `noDuplicateTools`, `requiredTools`, `forbiddenTools` |
+| 4 | Content | Free | `outputContains`, `outputNotContains`, `outputMatchesRegex`, `outputHasAllKeywords`, `outputHasAnyKeyword`, `outputForbids`, `contentContains` |
+| 5 | Embedding | Paid | `outputSimilarTo` |
+| 6 | LLM Judge | Paid | `passesJudge` |
+| 7 | Trace Tree | Free | `agentCalled`, `delegationDepth`, `agentOutputContains`, `crossAgentDataFlow`, `followsTransitions`, `aggregateCostUnder`, `aggregateTokensUnder`, `agentOrderedBefore`, `agentsOverlap`, `agentWallTimeUnder`, `orderedAgents` |

@@ -1,0 +1,299 @@
+---
+title: "TypeScript Agent Class"
+description: "Complete reference for the Agent class, agent() factory, and delegation in the TypeScript SDK."
+---
+
+> **Python equivalent:** [Python Expect DSL](/reference/python/expect-dsl/) (the `@agent` decorator)
+
+The `Agent` class wraps an agent function, manages trace construction via `TraceBuilder`, and returns an `AgentResult` for assertion chains.
+
+## Import
+
+```typescript
+import { Agent, agent, delegate, AgentResult } from '@attest-ai/core';
+```
+
+---
+
+## `Agent` Class
+
+### Constructor
+
+```typescript
+class Agent {
+  constructor(
+    name: string,
+    fn?: (builder: TraceBuilder, args: Record<string, unknown>) => unknown,
+  )
+}
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `string` | Agent identifier. Used as `agent_id` in traces. |
+| `fn` | `(builder: TraceBuilder, args: Record<string, unknown>) => unknown` | Agent function that receives a `TraceBuilder` and input arguments. Return value becomes the trace output. Optional — omit when using `withTrace()`. |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | The agent identifier (read-only). |
+
+### `run()`
+
+Executes the agent function synchronously. Creates a `TraceBuilder`, sets input, runs the function, captures output, and returns an `AgentResult`.
+
+```typescript
+run(args?: Record<string, unknown>): AgentResult
+```
+
+```typescript
+const myAgent = new Agent("assistant", (builder, args) => {
+  builder.addLlmCall("gpt-4.1", {
+    args: { prompt: args.question },
+    result: { completion: "42" },
+  });
+  return { message: "42" };
+});
+
+const result = myAgent.run({ question: "What is the answer?" });
+```
+
+**Output handling:**
+- Object return values are used as-is for trace output.
+- Non-object return values (string, number, etc.) are wrapped as `{ result: <value> }`.
+- `undefined` returns become `{ result: null }`.
+
+### `arun()`
+
+Async version of `run()`. Use when the agent function performs async operations.
+
+```typescript
+async arun(args?: Record<string, unknown>): Promise<AgentResult>
+```
+
+```typescript
+const asyncAgent = new Agent("fetcher", async (builder, args) => {
+  const data = await fetchData(args.url);
+  builder.addToolCall("fetch", {
+    args: { url: args.url },
+    result: { data },
+  });
+  return { message: JSON.stringify(data) };
+});
+
+const result = await asyncAgent.arun({ url: "https://api.example.com/data" });
+```
+
+### `withTrace()`
+
+Creates an `AgentResult` from a pre-built `Trace` object, bypassing the agent function entirely. Useful when integrating adapter-captured traces.
+
+```typescript
+withTrace(trace: Trace): AgentResult
+```
+
+```typescript
+import { OpenAIAdapter } from '@attest-ai/core';
+
+const adapter = new OpenAIAdapter("assistant");
+const trace = adapter.traceFromResponse(openaiResponse, {
+  inputMessages: messages,
+  costUsd: 0.003,
+  latencyMs: 450,
+});
+
+const myAgent = new Agent("assistant");
+const result = myAgent.withTrace(trace);
+```
+
+---
+
+## `agent()` Factory
+
+A convenience function that creates an `Agent` and returns a callable wrapper. The returned function calls `Agent.run()` internally.
+
+```typescript
+function agent(
+  name: string,
+  fn: (builder: TraceBuilder, args: Record<string, unknown>) => unknown,
+): (args?: Record<string, unknown>) => AgentResult
+```
+
+The returned wrapper also exposes the underlying `Agent` instance via `.agent`.
+
+```typescript
+const myAgent = agent("classifier", (builder, args) => {
+  builder.addLlmCall("gpt-4.1-mini", {
+    args: { text: args.text },
+    result: { completion: "positive" },
+  });
+  return { message: "positive", sentiment: "positive" };
+});
+
+// Call directly — no .run() needed
+const result = myAgent({ text: "I love this product" });
+
+// Access underlying Agent
+const agentInstance = (myAgent as any).agent; // Agent instance
+```
+
+---
+
+## `delegate()`
+
+Delegates execution to a sub-agent within a parent agent's `run()` context. Creates a child `TraceBuilder`, runs the sub-agent function, and records the delegation as an `agent_call` step on the parent trace.
+
+```typescript
+async function delegate(
+  agentId: string,
+  fn: (child: TraceBuilder) => Promise<void> | void,
+): Promise<void>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentId` | `string` | Identifier for the delegated sub-agent. |
+| `fn` | `(child: TraceBuilder) => Promise<void> \| void` | Function that builds the child trace. Receives a fresh `TraceBuilder`. |
+
+`delegate()` uses `AsyncLocalStorage` to find the parent `TraceBuilder`. It throws if called outside an `Agent.run()` or `Agent.arun()` context.
+
+```typescript
+const orchestrator = new Agent("orchestrator", async (builder, args) => {
+  builder.addLlmCall("gpt-4.1", {
+    args: { task: "plan" },
+    result: { completion: "Delegating to researcher" },
+  });
+
+  await delegate("researcher", (child) => {
+    child.setInput({ query: args.query });
+    child.addToolCall("search", {
+      args: { q: args.query },
+      result: { results: ["result1", "result2"] },
+    });
+    child.setOutput({ message: "Found 2 results" });
+  });
+
+  return { message: "Research complete" };
+});
+
+const result = await orchestrator.arun({ query: "attest framework" });
+```
+
+The resulting trace contains an `agent_call` step with the child's full trace embedded as `sub_trace`.
+
+---
+
+## `AgentResult`
+
+Holds the evaluation outcome: trace, assertion results, and aggregate metrics.
+
+```typescript
+class AgentResult {
+  constructor(
+    trace: Trace,
+    assertionResults?: readonly AssertionResult[],
+    totalCost?: number,
+    totalDurationMs?: number,
+  )
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `trace` | `Trace` | The captured trace (read-only). |
+| `assertionResults` | `readonly AssertionResult[]` | All assertion results after engine evaluation. Empty before evaluation. |
+| `totalCost` | `number` | Total evaluation cost in USD. |
+| `totalDurationMs` | `number` | Total evaluation duration in milliseconds. |
+
+### Computed Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `passed` | `boolean` | `true` if every assertion has status `"pass"`. |
+| `failedAssertions` | `readonly AssertionResult[]` | Assertions that did not pass (soft + hard failures). |
+| `hardFailures` | `readonly AssertionResult[]` | Assertions with status `"hard_fail"`. |
+| `softFailures` | `readonly AssertionResult[]` | Assertions with status `"soft_fail"` (warnings). |
+| `passCount` | `number` | Count of passed assertions. |
+| `failCount` | `number` | Count of failed assertions (soft + hard). |
+
+```typescript
+const evaluated = await evaluate(chain);
+
+console.log(`${evaluated.passCount}/${evaluated.assertionResults.length} passed`);
+console.log(`Cost: $${evaluated.totalCost.toFixed(4)}`);
+
+if (!evaluated.passed) {
+  for (const failure of evaluated.hardFailures) {
+    console.error(`FAIL: ${failure.explanation}`);
+  }
+  for (const warning of evaluated.softFailures) {
+    console.warn(`WARN: ${warning.explanation}`);
+  }
+}
+```
+
+---
+
+## Assertion Statuses
+
+| Status | Constant | Meaning |
+|--------|----------|---------|
+| `"pass"` | `STATUS_PASS` | Assertion succeeded. |
+| `"soft_fail"` | `STATUS_SOFT_FAIL` | Assertion failed but was marked `soft: true`. Reported as warning. |
+| `"hard_fail"` | `STATUS_HARD_FAIL` | Assertion failed. Test should fail. |
+
+---
+
+## Full Multi-Agent Example
+
+```typescript
+import { Agent, attestExpect, delegate } from '@attest-ai/core';
+import { evaluate } from '@attest-ai/vitest';
+import { describe, it, expect } from 'vitest';
+
+const pipeline = new Agent("orchestrator", async (builder, args) => {
+  builder.addLlmCall("gpt-4.1", {
+    args: { task: "coordinate" },
+    result: { completion: "Delegating research and writing" },
+  });
+
+  await delegate("researcher", (child) => {
+    child.setInput({ topic: args.topic });
+    child.addToolCall("web_search", {
+      args: { query: args.topic },
+      result: { articles: 5 },
+    });
+    child.setOutput({ message: "Found 5 relevant articles" });
+  });
+
+  await delegate("writer", (child) => {
+    child.setInput({ findings: "5 articles" });
+    child.addLlmCall("gpt-4.1", {
+      args: { task: "write summary" },
+      result: { completion: "Summary of findings..." },
+    });
+    child.setOutput({ message: "Summary of findings..." });
+  });
+
+  return { message: "Research and summary complete" };
+});
+
+describe("multi-agent pipeline", () => {
+  it("delegates correctly", async () => {
+    const result = await pipeline.arun({ topic: "AI testing" });
+
+    const chain = attestExpect(result)
+      .agentCalled("researcher")
+      .agentCalled("writer")
+      .agentOrderedBefore("researcher", "writer")
+      .delegationDepth(1)
+      .aggregateCostUnder(0.10);
+
+    const evaluated = await evaluate(chain);
+    expect(evaluated.passed).toBe(true);
+  });
+});
+```

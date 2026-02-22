@@ -1,0 +1,371 @@
+---
+title: "JSON-RPC Protocol"
+description: "Wire protocol specification for communication between Attest SDKs and the Go engine."
+---
+
+The Attest engine communicates with SDKs via **JSON-RPC 2.0 over NDJSON** (newline-delimited JSON) on stdin/stdout. Each message is a single JSON object terminated by `\n`.
+
+## Transport
+
+| Property | Value |
+|----------|-------|
+| Protocol | JSON-RPC 2.0 |
+| Encoding | NDJSON (one JSON object per line) |
+| Transport | stdin (SDK to engine), stdout (engine to SDK) |
+| Engine stderr | Log output (not protocol traffic) |
+| Encoding | UTF-8, compact JSON (no whitespace) |
+
+The SDK writes requests to the engine's stdin and reads responses from stdout. The engine's stderr carries log messages and is not part of the protocol.
+
+## Request Format
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": { ... }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `jsonrpc` | `string` | Always `"2.0"` |
+| `id` | `integer` | Auto-incrementing request ID for response correlation |
+| `method` | `string` | RPC method name |
+| `params` | `object` | Method-specific parameters |
+
+## Response Format
+
+### Success
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": { ... }
+}
+```
+
+### Error
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": 1001,
+    "message": "Invalid trace: missing required field 'output'",
+    "data": {
+      "error_type": "validation",
+      "retryable": false,
+      "detail": "Trace output is required"
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error.code` | `integer` | Error code (see table below) |
+| `error.message` | `string` | Human-readable error description |
+| `error.data` | `object \| null` | Structured error metadata |
+| `error.data.error_type` | `string` | Error category |
+| `error.data.retryable` | `boolean` | Whether the request can be retried |
+| `error.data.detail` | `string` | Additional context |
+
+## Methods
+
+### `initialize`
+
+Handshake between SDK and engine. Must be the first request.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "sdk_name": "attest-python",
+    "sdk_version": "0.4.2",
+    "protocol_version": 1,
+    "required_capabilities": ["layers_1_4"],
+    "preferred_encoding": "json"
+  }
+}
+```
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `sdk_name` | `string` | SDK identifier (`attest-python` or `attest-typescript`) |
+| `sdk_version` | `string` | SDK version |
+| `protocol_version` | `integer` | Requested protocol version (currently `1`) |
+| `required_capabilities` | `string[]` | Capabilities the SDK requires |
+| `preferred_encoding` | `string` | Wire encoding preference (`"json"`) |
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "engine_version": "0.4.0",
+    "protocol_version": 1,
+    "capabilities": ["layers_1_4", "layers_5_6", "layer_7", "layer_8"],
+    "missing": [],
+    "compatible": true,
+    "encoding": "json",
+    "max_concurrent_requests": 64,
+    "max_trace_size_bytes": 10485760,
+    "max_steps_per_trace": 10000
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `engine_version` | `string` | Engine binary version |
+| `protocol_version` | `integer` | Negotiated protocol version |
+| `capabilities` | `string[]` | Available engine capabilities |
+| `missing` | `string[]` | Requested capabilities not available |
+| `compatible` | `boolean` | `true` if all required capabilities are present |
+| `encoding` | `string` | Negotiated encoding |
+| `max_concurrent_requests` | `integer` | Max parallel evaluations |
+| `max_trace_size_bytes` | `integer` | Max trace payload size in bytes |
+| `max_steps_per_trace` | `integer` | Max steps allowed per trace |
+
+### `evaluate_batch`
+
+Evaluate a batch of assertions against a trace.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "evaluate_batch",
+  "params": {
+    "trace": {
+      "schema_version": 1,
+      "trace_id": "trc_abc123def456",
+      "agent_id": "weather-agent",
+      "input": {
+        "query": "weather in tokyo"
+      },
+      "steps": [
+        {
+          "type": "llm_call",
+          "name": "gpt-4.1",
+          "args": { "messages": [{"role": "user", "content": "weather in tokyo"}] },
+          "result": { "content": "Let me check." }
+        },
+        {
+          "type": "tool_call",
+          "name": "get_weather",
+          "args": { "city": "tokyo" },
+          "result": { "temp_c": 22, "condition": "sunny" }
+        }
+      ],
+      "output": {
+        "message": "Tokyo is 22C and sunny."
+      },
+      "metadata": {
+        "total_tokens": 350,
+        "cost_usd": 0.001,
+        "latency_ms": 800
+      },
+      "parent_trace_id": null
+    },
+    "assertions": [
+      {
+        "assertion_id": "assert_a1b2c3d4",
+        "type": "content",
+        "spec": {
+          "target": "output.message",
+          "check": "contains",
+          "value": "tokyo",
+          "case_sensitive": false
+        }
+      },
+      {
+        "assertion_id": "assert_e5f6g7h8",
+        "type": "constraint",
+        "spec": {
+          "field": "metadata.cost_usd",
+          "operator": "lte",
+          "value": 0.01
+        }
+      }
+    ]
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "results": [
+      {
+        "assertion_id": "assert_a1b2c3d4",
+        "status": "pass",
+        "score": 1.0,
+        "explanation": "output.message contains 'tokyo' (case-insensitive)",
+        "cost": 0.0,
+        "duration_ms": 0
+      },
+      {
+        "assertion_id": "assert_e5f6g7h8",
+        "status": "pass",
+        "score": 1.0,
+        "explanation": "metadata.cost_usd (0.001) <= 0.01",
+        "cost": 0.0,
+        "duration_ms": 0
+      }
+    ],
+    "total_cost": 0.0,
+    "total_duration_ms": 1
+  }
+}
+```
+
+#### Assertion Result Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `assertion_id` | `string` | Matches the request assertion ID |
+| `status` | `string` | `"pass"`, `"soft_fail"`, or `"hard_fail"` |
+| `score` | `float` | 0.0 to 1.0 confidence score |
+| `explanation` | `string` | Human-readable reason |
+| `cost` | `float` | USD cost of this assertion (0 for layers 1-4) |
+| `duration_ms` | `integer` | Evaluation time |
+| `request_id` | `string \| null` | Optional correlation ID |
+
+### `submit_plugin_result`
+
+Submit an externally-computed plugin result to the engine.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "submit_plugin_result",
+  "params": {
+    "trace_id": "trc_abc123def456",
+    "plugin_name": "toxicity-checker",
+    "assertion_id": "assert_plugin_01",
+    "result": {
+      "assertion_id": "assert_plugin_01",
+      "status": "pass",
+      "score": 0.95,
+      "explanation": "No toxic content detected",
+      "cost": 0.0,
+      "duration_ms": 50
+    }
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "accepted": true
+  }
+}
+```
+
+### `shutdown`
+
+Gracefully terminate the engine. Returns session statistics.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "shutdown",
+  "params": {}
+}
+```
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "sessions_completed": 1,
+    "assertions_evaluated": 47
+  }
+}
+```
+
+## Error Codes
+
+| Code | Constant | Description |
+|------|----------|-------------|
+| `1001` | `ERR_INVALID_TRACE` | Trace validation failed (missing fields, invalid schema) |
+| `1002` | `ERR_ASSERTION_ERROR` | Assertion evaluation error (invalid spec, unknown type) |
+| `2001` | `ERR_PROVIDER_ERROR` | External provider error (LLM API failure, embedding error) |
+| `3001` | `ERR_ENGINE_ERROR` | Internal engine error |
+| `3002` | `ERR_TIMEOUT` | Request timed out |
+| `3003` | `ERR_SESSION_ERROR` | Session state error (not initialized, already shutdown) |
+
+## Assertion Types
+
+The `type` field in assertion objects maps to pipeline layers:
+
+| Type | Layer | Cost | Description |
+|------|-------|------|-------------|
+| `schema` | 1 | Free | JSON Schema validation |
+| `constraint` | 2 | Free | Numeric/string constraints |
+| `trace` | 3 | Free | Step ordering and tool verification |
+| `content` | 4 | Free | String matching, regex, keywords |
+| `embedding` | 5 | ~$0.001 | Semantic similarity via embeddings |
+| `llm_judge` | 6 | ~$0.01 | Natural language evaluation |
+| `trace_tree` | 7 | Free | Multi-agent delegation analysis |
+
+## Simulation Mode
+
+When `ATTEST_SIMULATION=1` is set, the SDK bypasses the engine entirely. `evaluate_batch` returns deterministic `pass` results for all assertions with zero cost. No subprocess is spawned.
+
+```json
+{
+  "results": [
+    {
+      "assertion_id": "assert_a1b2c3d4",
+      "status": "pass",
+      "score": 1.0,
+      "explanation": "[simulation] content assertion passed (deterministic)",
+      "cost": 0.0,
+      "duration_ms": 0
+    }
+  ],
+  "total_cost": 0.0,
+  "total_duration_ms": 0
+}
+```
+
+## Concurrency Model
+
+The `AttestClient` wraps `EngineManager` with request/response correlation:
+
+- A background reader loop reads NDJSON lines from stdout and resolves pending futures by request ID
+- A write lock serializes outbound requests (stdin is sequential)
+- Multiple callers can await independent futures concurrently
+- The pytest plugin runs the engine event loop on a dedicated daemon thread, making both sync (`evaluate`) and async (`evaluate_async`) paths safe from any calling context
