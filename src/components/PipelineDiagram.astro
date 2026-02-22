@@ -1,0 +1,45 @@
+---
+/**
+ * 8-layer assertion pipeline visualization.
+ * Renders each layer with cost tier coloring and hover effects.
+ * Styles are in src/styles/custom.css under .pipeline-diagram.
+ */
+
+interface Layer {
+  number: number;
+  name: string;
+  description: string;
+  tier: 'free' | 'cheap' | 'expensive';
+  cost: string;
+}
+
+const layers: Layer[] = [
+  { number: 1, name: 'Schema Validation', description: 'JSON Schema conformance, required fields, type checking', tier: 'free', cost: 'Free' },
+  { number: 2, name: 'Constraint Checking', description: 'Value ranges, string patterns, numeric bounds', tier: 'free', cost: 'Free' },
+  { number: 3, name: 'Trace Validation', description: 'Step ordering, tool call verification, timing checks', tier: 'free', cost: 'Free' },
+  { number: 4, name: 'Content Matching', description: 'Regex patterns, keyword presence, substring matching', tier: 'free', cost: 'Free' },
+  { number: 5, name: 'Embedding Similarity', description: 'Semantic similarity via vector embeddings', tier: 'cheap', cost: '~$0.001' },
+  { number: 6, name: 'LLM Judge', description: 'Natural language evaluation by a judge model', tier: 'expensive', cost: '~$0.01' },
+  { number: 7, name: 'Trace Tree', description: 'Multi-agent delegation chains, cross-agent assertions', tier: 'free', cost: 'Free' },
+  { number: 8, name: 'Plugin', description: 'Custom evaluation logic via the plugin protocol', tier: 'cheap', cost: 'Varies' },
+];
+
+const tierColors: Record<string, string> = {
+  free: 'var(--attest-tier-free)',
+  cheap: 'var(--attest-tier-cheap)',
+  expensive: 'var(--attest-tier-expensive)',
+};
+---
+
+<div class="pipeline-diagram">
+  {layers.map((layer) => (
+    <div class={`pipeline-layer tier-${layer.tier}`}>
+      <span class="layer-number">{layer.number}</span>
+      <div class="layer-info">
+        <div class="layer-name">{layer.name}</div>
+        <div class="layer-desc">{layer.description}</div>
+      </div>
+      <span class="layer-cost" style={`color: ${tierColors[layer.tier]}`}>{layer.cost}</span>
+    </div>
+  ))}
+</div>

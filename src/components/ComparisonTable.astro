@@ -1,0 +1,49 @@
+---
+/**
+ * Feature comparison table — Attest vs competing frameworks.
+ * Styles in src/styles/custom.css under .comparison-table.
+ */
+
+interface Feature {
+  name: string;
+  attest: boolean;
+  deepeval: boolean;
+  promptfoo: boolean;
+  ragas: boolean;
+  langwatch: boolean;
+}
+
+const features: Feature[] = [
+  { name: 'Deterministic assertions', attest: true, deepeval: false, promptfoo: true, ragas: false, langwatch: false },
+  { name: 'Graduated cost layers', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
+  { name: 'LLM-as-judge', attest: true, deepeval: true, promptfoo: true, ragas: true, langwatch: true },
+  { name: 'Multi-agent traces', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
+  { name: 'Simulation mode', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
+  { name: 'Framework adapters (5+)', attest: true, deepeval: false, promptfoo: false, ragas: true, langwatch: true },
+  { name: 'Code-first (not config)', attest: true, deepeval: true, promptfoo: false, ragas: true, langwatch: false },
+  { name: 'Python + TypeScript SDKs', attest: true, deepeval: false, promptfoo: true, ragas: false, langwatch: false },
+];
+
+const tools = ['Attest', 'DeepEval', 'PromptFoo', 'Ragas', 'LangWatch'] as const;
+---
+
+<table class="comparison-table">
+  <thead>
+    <tr>
+      <th>Feature</th>
+      {tools.map((tool) => <th>{tool}</th>)}
+    </tr>
+  </thead>
+  <tbody>
+    {features.map((feature, i) => (
+      <tr class={i === features.length - 1 ? 'highlight' : ''}>
+        <td>{feature.name}</td>
+        <td class={feature.attest ? 'check' : 'cross'}>{feature.attest ? '\u2713' : '\u2717'}</td>
+        <td class={feature.deepeval ? 'check' : 'cross'}>{feature.deepeval ? '\u2713' : '\u2717'}</td>
+        <td class={feature.promptfoo ? 'check' : 'cross'}>{feature.promptfoo ? '\u2713' : '\u2717'}</td>
+        <td class={feature.ragas ? 'check' : 'cross'}>{feature.ragas ? '\u2713' : '\u2717'}</td>
+        <td class={feature.langwatch ? 'check' : 'cross'}>{feature.langwatch ? '\u2713' : '\u2717'}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>

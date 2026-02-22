@@ -1,0 +1,86 @@
+---
+title: Overview
+description: What Attest Framework is, why it exists, and how it works.
+---
+
+Attest is a testing framework for AI agents. It provides an 8-layer graduated assertion pipeline that starts with free deterministic checks and escalates to expensive LLM-based evaluation only when needed.
+
+## The Problem
+
+Testing AI agents is different from testing traditional software:
+
+- **Non-deterministic outputs** — The same input produces different outputs across runs
+- **Multi-step behavior** — Agents make sequences of decisions (tool calls, API calls, delegations)
+- **Cost per test** — LLM-as-judge evaluation costs money on every run
+- **Framework fragmentation** — Teams use OpenAI, LangChain, CrewAI, Google ADK — each with different tracing formats
+
+Most existing tools solve this by throwing an LLM judge at everything. That's expensive, slow, and flaky. Attest takes a different approach: **check what you can deterministically first, then escalate**.
+
+## How It Works
+
+### 1. Instrument your agent
+
+Use one of 11 adapters (or the `@agent` decorator) to capture execution traces:
+
+```python
+from attest import agent
+
+@agent("my-agent")
+async def my_agent(query: str) -> str:
+    # Your agent logic — tool calls, LLM calls, delegations
+    ...
+```
+
+### 2. Write assertions with the `expect()` DSL
+
+```python
+result = await my_agent("What's 2+2?")
+
+expect(result).output_to_contain("4")                    # Layer 4: Free, instant
+expect(result).to_have_steps(["llm_call"])               # Layer 3: Free, instant
+expect(result).output_to_satisfy("mathematically correct") # Layer 6: ~$0.01
+```
+
+### 3. Run with pytest (Python) or vitest (TypeScript)
+
+```bash
+# Python
+pytest test_agent.py -v
+
+# TypeScript
+npx vitest run
+```
+
+## Key Features
+
+- **8 assertion layers** — Schema, constraint, trace, content, embedding, LLM judge, trace tree, plugin
+- **11 framework adapters** — OpenAI, Anthropic, Gemini, Ollama, LangChain, LlamaIndex, CrewAI, Google ADK, OpenTelemetry, Manual
+- **Multi-agent trace trees** — Test delegation chains, cross-agent assertions, temporal ordering
+- **Simulation mode** — Run tests without API calls using mock tools and personas
+- **Continuous evaluation** — Sample production traces and run assertions with alerting
+- **Drift detection** — Monitor agent behavior changes over time
+- **Cost tracking** — Per-assertion cost metrics with tier budgets
+- **Plugin system** — Extend with custom evaluation logic via entry points
+
+## Architecture
+
+Attest uses a **subprocess architecture**: a Go engine handles assertion evaluation while SDKs (Python, TypeScript) handle instrumentation and the developer API.
+
+```
+┌─────────────┐     JSON-RPC 2.0      ┌──────────────┐
+│  Python SDK  │ ◄──── NDJSON/stdio ───► │  Go Engine   │
+│  or TS SDK   │                        │  (subprocess) │
+└─────────────┘                        └──────────────┘
+```
+
+The engine is a single static binary — no runtime dependencies, no containers. SDKs auto-download the correct version on first run.
+
+## Version
+
+Current release: **v0.4.2** (SDK), **v0.4.0** (engine). Alpha stage — API surface is stabilizing but breaking changes are still possible before v1.0.
+
+| Package | Registry | Install |
+|---------|----------|---------|
+| `attest-ai` | PyPI | `pip install attest-ai` |
+| `@attest-ai/core` | npm | `npm install @attest-ai/core` |
+| `@attest-ai/vitest` | npm | `npm install @attest-ai/vitest` |
