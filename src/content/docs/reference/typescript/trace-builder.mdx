@@ -1,0 +1,550 @@
+---
+title: "TypeScript TraceBuilder"
+description: "Complete reference for TraceBuilder, TraceTree, and manual trace construction in the TypeScript SDK."
+---
+
+> **Python equivalent:** [Python TraceBuilder](/reference/python/trace-builder/)
+
+`TraceBuilder` constructs `Trace` objects step by step. `TraceTree` provides read-only traversal and aggregation over multi-agent trace hierarchies.
+
+## Import
+
+```typescript
+import { TraceBuilder, TraceTree } from '@attest-ai/core';
+```
+
+---
+
+## `TraceBuilder`
+
+Fluent builder for constructing `Trace` objects. Every method returns `this` for chaining.
+
+### Constructor
+
+```typescript
+class TraceBuilder {
+  constructor(agentId?: string)
+}
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentId` | `string \| undefined` | Agent identifier. Stored as `agent_id` on the built trace. |
+
+A random `trace_id` (format `trc_<12-hex-chars>`) is generated automatically.
+
+### `setTraceId()`
+
+Override the auto-generated trace ID.
+
+```typescript
+setTraceId(traceId: string): this
+```
+
+### `setInput()`
+
+Set the trace input data.
+
+```typescript
+setInput(input: Record<string, unknown>): this
+```
+
+```typescript
+builder.setInput({ question: "What is the capital of France?" });
+```
+
+### `addLlmCall()`
+
+Add an LLM call step to the trace.
+
+```typescript
+addLlmCall(
+  name: string,
+  options?: {
+    args?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): this
+```
+
+```typescript
+builder.addLlmCall("gpt-4.1", {
+  args: { prompt: "Translate to French", model: "gpt-4.1" },
+  result: { completion: "Bonjour le monde" },
+  metadata: { tokens: 42 },
+});
+```
+
+### `addToolCall()`
+
+Add a tool call step to the trace.
+
+```typescript
+addToolCall(
+  name: string,
+  options?: {
+    args?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): this
+```
+
+```typescript
+builder.addToolCall("web_search", {
+  args: { query: "attest framework" },
+  result: { urls: ["https://example.com"] },
+});
+```
+
+### `addRetrieval()`
+
+Add a retrieval step (RAG context fetch) to the trace.
+
+```typescript
+addRetrieval(
+  name: string,
+  options?: {
+    args?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): this
+```
+
+```typescript
+builder.addRetrieval("vector_db", {
+  args: { query: "product specs", top_k: 5 },
+  result: { documents: ["doc1", "doc2"] },
+});
+```
+
+### `addStep()`
+
+Add a raw `Step` object. Use for custom step types (e.g., `agent_call` with `sub_trace`).
+
+```typescript
+addStep(step: Step): this
+```
+
+```typescript
+import { STEP_AGENT_CALL } from '@attest-ai/core';
+
+builder.addStep({
+  type: STEP_AGENT_CALL,
+  name: "sub-agent",
+  args: { task: "summarize" },
+  result: { summary: "..." },
+  sub_trace: childTrace,
+});
+```
+
+### `setOutput()`
+
+Set the trace output. Required before calling `build()`.
+
+```typescript
+setOutput(output: Record<string, unknown>): this
+```
+
+```typescript
+builder.setOutput({ message: "The capital of France is Paris." });
+```
+
+### `setMetadata()`
+
+Set trace-level metadata (tokens, cost, latency, model, timestamp).
+
+```typescript
+setMetadata(metadata: {
+  total_tokens?: number;
+  cost_usd?: number;
+  latency_ms?: number;
+  model?: string;
+  timestamp?: string;
+}): this
+```
+
+```typescript
+builder.setMetadata({
+  total_tokens: 150,
+  cost_usd: 0.003,
+  latency_ms: 450,
+  model: "gpt-4.1",
+});
+```
+
+### `setParentTraceId()`
+
+Link this trace to a parent trace (for delegation chains).
+
+```typescript
+setParentTraceId(parentId: string): this
+```
+
+### `build()`
+
+Build the final `Trace` object. Throws if `setOutput()` was not called.
+
+```typescript
+build(): Trace
+```
+
+```typescript
+const trace = builder.build();
+// trace.trace_id, trace.agent_id, trace.input, trace.steps, trace.output, trace.metadata
+```
+
+### Complete Example
+
+```typescript
+const builder = new TraceBuilder("assistant");
+
+const trace = builder
+  .setInput({ question: "Summarize this article" })
+  .addRetrieval("vector_store", {
+    args: { query: "article content", top_k: 3 },
+    result: { documents: ["chunk1", "chunk2", "chunk3"] },
+  })
+  .addLlmCall("gpt-4.1", {
+    args: { prompt: "Summarize: chunk1, chunk2, chunk3" },
+    result: { completion: "This article discusses..." },
+  })
+  .setOutput({ message: "This article discusses..." })
+  .setMetadata({ total_tokens: 320, cost_usd: 0.006, latency_ms: 800 })
+  .build();
+```
+
+---
+
+## `Trace` Interface
+
+The immutable trace object produced by `TraceBuilder.build()`.
+
+```typescript
+interface Trace {
+  readonly trace_id: string;
+  readonly output: Record<string, unknown>;
+  readonly schema_version?: number;
+  readonly agent_id?: string;
+  readonly input?: Record<string, unknown>;
+  readonly steps: readonly Step[];
+  readonly metadata?: TraceMetadata;
+  readonly parent_trace_id?: string;
+}
+```
+
+## `Step` Interface
+
+```typescript
+interface Step {
+  readonly type: string;        // "llm_call" | "tool_call" | "retrieval" | "agent_call"
+  readonly name: string;
+  readonly args?: Record<string, unknown>;
+  readonly result?: Record<string, unknown>;
+  readonly sub_trace?: Trace;   // Present for agent_call steps
+  readonly metadata?: Record<string, unknown>;
+  readonly started_at_ms?: number;
+  readonly ended_at_ms?: number;
+  readonly agent_id?: string;
+  readonly agent_role?: string;
+}
+```
+
+### Step Type Constants
+
+```typescript
+import {
+  STEP_LLM_CALL,     // "llm_call"
+  STEP_TOOL_CALL,    // "tool_call"
+  STEP_RETRIEVAL,    // "retrieval"
+  STEP_AGENT_CALL,   // "agent_call"
+} from '@attest-ai/core';
+```
+
+## `TraceMetadata` Interface
+
+```typescript
+interface TraceMetadata {
+  readonly total_tokens?: number;
+  readonly cost_usd?: number;
+  readonly latency_ms?: number;
+  readonly model?: string;
+  readonly timestamp?: string;
+}
+```
+
+---
+
+## `TraceTree`
+
+Read-only utility for traversing and aggregating multi-agent trace hierarchies. Operates on traces that contain `agent_call` steps with nested `sub_trace` objects.
+
+### Constructor
+
+```typescript
+class TraceTree {
+  constructor(root: Trace)
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `root` | `Trace` | The root trace (read-only). |
+
+### `agents`
+
+Returns all agent IDs found in the tree (depth-first order).
+
+```typescript
+get agents(): string[]
+```
+
+```typescript
+const tree = new TraceTree(rootTrace);
+console.log(tree.agents); // ["orchestrator", "researcher", "writer"]
+```
+
+### `depth`
+
+Returns the maximum delegation depth. A trace with no sub-agents has depth 0.
+
+```typescript
+get depth(): number
+```
+
+```typescript
+console.log(tree.depth); // 2 (orchestrator -> researcher -> sub-researcher)
+```
+
+### `findAgent()`
+
+Finds the trace for a specific agent ID. Returns `undefined` if not found.
+
+```typescript
+findAgent(agentId: string): Trace | undefined
+```
+
+```typescript
+const researcherTrace = tree.findAgent("researcher");
+if (researcherTrace) {
+  console.log(researcherTrace.output);
+}
+```
+
+### `flatten()`
+
+Returns all traces in the tree as a flat array (depth-first order).
+
+```typescript
+flatten(): Trace[]
+```
+
+```typescript
+const allTraces = tree.flatten();
+console.log(`Total agents: ${allTraces.length}`);
+```
+
+### `delegations`
+
+Returns all parent-child delegation pairs as `[parentId, childId]` tuples.
+
+```typescript
+get delegations(): [string, string][]
+```
+
+```typescript
+console.log(tree.delegations);
+// [["orchestrator", "researcher"], ["orchestrator", "writer"]]
+```
+
+### `allToolCalls()`
+
+Returns all tool call steps from every trace in the tree.
+
+```typescript
+allToolCalls(): Step[]
+```
+
+```typescript
+const tools = tree.allToolCalls();
+console.log(`Total tool calls: ${tools.length}`);
+```
+
+### Aggregate Metrics
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `aggregateTokens` | `number` | Sum of `metadata.total_tokens` across all traces. |
+| `aggregateCost` | `number` | Sum of `metadata.cost_usd` across all traces. |
+| `aggregateLatency` | `number` | Sum of `metadata.latency_ms` across all traces. |
+
+```typescript
+const tree = new TraceTree(rootTrace);
+console.log(`Total tokens: ${tree.aggregateTokens}`);
+console.log(`Total cost: $${tree.aggregateCost.toFixed(4)}`);
+console.log(`Total latency: ${tree.aggregateLatency}ms`);
+```
+
+### Complete Example
+
+```typescript
+import { TraceBuilder, TraceTree, STEP_AGENT_CALL } from '@attest-ai/core';
+
+// Build root trace with delegations
+const researcher = new TraceBuilder("researcher")
+  .setInput({ query: "AI testing" })
+  .addToolCall("search", { result: { count: 10 } })
+  .setOutput({ message: "Found 10 results" })
+  .setMetadata({ total_tokens: 200, cost_usd: 0.002 })
+  .build();
+
+const writer = new TraceBuilder("writer")
+  .setInput({ findings: "10 results" })
+  .addLlmCall("gpt-4.1", { result: { completion: "Summary..." } })
+  .setOutput({ message: "Summary..." })
+  .setMetadata({ total_tokens: 500, cost_usd: 0.01 })
+  .build();
+
+const root = new TraceBuilder("orchestrator")
+  .setInput({ topic: "AI testing" })
+  .addLlmCall("gpt-4.1", { result: { completion: "Plan: research then write" } })
+  .addStep({
+    type: STEP_AGENT_CALL,
+    name: "researcher",
+    sub_trace: researcher,
+    result: researcher.output,
+  })
+  .addStep({
+    type: STEP_AGENT_CALL,
+    name: "writer",
+    sub_trace: writer,
+    result: writer.output,
+  })
+  .setOutput({ message: "Research and writing complete" })
+  .setMetadata({ total_tokens: 100, cost_usd: 0.001 })
+  .build();
+
+// Traverse the tree
+const tree = new TraceTree(root);
+console.log(tree.agents);           // ["orchestrator", "researcher", "writer"]
+console.log(tree.depth);            // 1
+console.log(tree.delegations);      // [["orchestrator", "researcher"], ["orchestrator", "writer"]]
+console.log(tree.aggregateTokens);  // 800
+console.log(tree.aggregateCost);    // 0.013
+console.log(tree.allToolCalls());   // [Step { type: "tool_call", name: "search", ... }]
+```
+
+---
+
+## Tier Decorators
+
+Tier decorators tag test functions with assertion cost tiers for selective execution.
+
+```typescript
+import { TIER_1, TIER_2, TIER_3, tier } from '@attest-ai/core';
+```
+
+| Constant | Value | Assertion Layers | Cost |
+|----------|-------|-----------------|------|
+| `TIER_1` | `1` | Schema, Constraint, Trace, Content (L1-L4) | Free |
+| `TIER_2` | `2` | + Embedding (L5) | Low |
+| `TIER_3` | `3` | + LLM Judge (L6) | High |
+
+### `tier()`
+
+Returns a decorator that tags a function with a tier level.
+
+```typescript
+function tier(level: number): <T extends (...args: never[]) => unknown>(fn: T) => T
+```
+
+```typescript
+const testBasicOutput = tier(TIER_1)(() => {
+  // Schema + constraint assertions only
+});
+
+const testSemanticQuality = tier(TIER_3)(() => {
+  // Includes LLM judge assertions
+});
+```
+
+Use `filterByTier()` from `@attest-ai/vitest` to run tests up to a specific tier:
+
+```typescript
+import { filterByTier } from '@attest-ai/vitest';
+
+// Run only tier 1 tests (free, fast)
+const tier1Tests = filterByTier(allTests, TIER_1);
+```
+
+---
+
+## Adapters
+
+Adapters convert provider-specific response formats into `Trace` objects.
+
+```typescript
+import {
+  OpenAIAdapter,
+  AnthropicAdapter,
+  GeminiAdapter,
+  OllamaAdapter,
+  ManualAdapter,
+  OTelAdapter,
+} from '@attest-ai/core';
+```
+
+All adapters implement the `TraceAdapter` interface:
+
+```typescript
+interface TraceAdapter {
+  capture(...args: unknown[]): Trace;
+}
+```
+
+### `OpenAIAdapter`
+
+Converts OpenAI chat completion responses to traces.
+
+```typescript
+class OpenAIAdapter {
+  constructor(agentId?: string)
+
+  traceFromResponse(
+    response: OpenAIChatCompletion,
+    options?: {
+      inputMessages?: Record<string, unknown>[];
+      costUsd?: number;
+      latencyMs?: number;
+      structuredOutput?: Record<string, unknown>;
+    },
+  ): Trace
+}
+```
+
+```typescript
+const adapter = new OpenAIAdapter("assistant");
+
+const response = await openai.chat.completions.create({
+  model: "gpt-4.1",
+  messages: [{ role: "user", content: "Hello" }],
+});
+
+const trace = adapter.traceFromResponse(response, {
+  inputMessages: [{ role: "user", content: "Hello" }],
+  costUsd: 0.002,
+  latencyMs: 350,
+});
+
+const chain = attestExpect(trace).outputContains("Hello");
+```
+
+The adapter extracts:
+- LLM call step from the completion
+- Tool call steps from `tool_calls` in the response
+- Token usage from `usage.total_tokens`
+- Model name from `response.model`

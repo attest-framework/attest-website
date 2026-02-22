@@ -1,0 +1,305 @@
+---
+title: "Writing a Plugin"
+description: "Create custom evaluation logic for Layer 8 of the Attest assertion pipeline."
+---
+
+Layer 8 of the assertion pipeline allows custom evaluation logic via plugins. Plugins run outside the engine and submit results through the `submit_plugin_result` method. This tutorial walks through creating, registering, and testing a custom plugin.
+
+## How Plugins Work
+
+```
+┌─────────┐    evaluate_batch    ┌──────────┐
+│   SDK   │ ──────────────────► │  Engine   │
+└─────────┘                    └─────┬────┘
+     ▲                               │
+     │      submit_plugin_result     │ Layer 8 assertion
+     │ ◄─────────────────────────────┘ delegated to plugin
+     │
+┌────┴──────┐
+│  Plugin   │  (your code)
+│  Process  │
+└───────────┘
+```
+
+1. The engine receives an `evaluate_batch` request containing assertions of type `plugin`
+2. For plugin-type assertions, the engine waits for external results
+3. Your plugin code evaluates the trace and submits results via `submit_plugin_result`
+4. The engine incorporates the plugin result into the batch response
+
+## Step 1: Define the Plugin Logic
+
+Create a module that evaluates a trace and returns a score:
+
+```python
+# plugins/toxicity_checker.py
+from __future__ import annotations
+
+from attest._proto.types import Trace
+
+
+def check_toxicity(trace: Trace) -> tuple[str, float, str]:
+    """Evaluate trace output for toxic content.
+
+    Returns:
+        Tuple of (status, score, explanation).
+    """
+    output_message = trace.output.get("message", "")
+
+    toxic_patterns = [
+        "offensive term",
+        "harmful content",
+        "inappropriate language",
+    ]
+
+    found = [p for p in toxic_patterns if p.lower() in output_message.lower()]
+
+    if found:
+        score = max(0.0, 1.0 - (len(found) * 0.3))
+        return (
+            "hard_fail" if score < 0.5 else "soft_fail",
+            score,
+            f"Found {len(found)} toxic patterns: {', '.join(found)}",
+        )
+
+    return ("pass", 1.0, "No toxic content detected")
+```
+
+## Step 2: Submit Results via the Client
+
+Use `AttestClient.submit_plugin_result` to send results to the engine:
+
+```python
+# plugins/runner.py
+from __future__ import annotations
+
+from attest._proto.types import Trace
+from attest.client import AttestClient
+
+from plugins.toxicity_checker import check_toxicity
+
+
+async def run_toxicity_plugin(
+    client: AttestClient,
+    trace: Trace,
+    assertion_id: str,
+) -> bool:
+    """Run toxicity check and submit result to engine."""
+    status, score, explanation = check_toxicity(trace)
+
+    accepted = await client.submit_plugin_result(
+        trace_id=trace.trace_id,
+        plugin_name="toxicity-checker",
+        assertion_id=assertion_id,
+        status=status,
+        score=score,
+        explanation=explanation,
+    )
+    return accepted
+```
+
+### `submit_plugin_result` Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `trace_id` | `str` | ID of the trace being evaluated |
+| `plugin_name` | `str` | Plugin identifier |
+| `assertion_id` | `str` | ID of the assertion this result satisfies |
+| `status` | `str` | `"pass"`, `"soft_fail"`, or `"hard_fail"` |
+| `score` | `float` | Confidence score (0.0 to 1.0) |
+| `explanation` | `str` | Human-readable explanation |
+
+Returns `True` if the engine accepted the result.
+
+## Step 3: Wire into Tests
+
+Use the plugin in your pytest tests:
+
+```python
+# test_agent.py
+import pytest
+from attest import agent, expect, Assertion
+
+from plugins.runner import run_toxicity_plugin
+
+
+@agent("chat-agent")
+def chat_agent(builder, user_message):
+    builder.add_llm_call(
+        name="gpt-4.1",
+        args={"messages": [{"role": "user", "content": user_message}]},
+        result={"content": "Here's a helpful response."},
+    )
+    return {"message": "Here's a helpful response."}
+
+
+def test_agent_not_toxic(attest):
+    result = chat_agent(user_message="Tell me about quantum computing")
+
+    # Standard assertions (layers 1-4)
+    chain = expect(result).output_contains("helpful")
+    agent_result = attest.evaluate(chain)
+    assert agent_result.passed
+
+    # Plugin assertion (layer 8) — run separately
+    # In a full integration, this would be triggered by the engine
+    # when it encounters a plugin-type assertion
+```
+
+## Step 4: Plugin with ContinuousEvalRunner
+
+For production use, combine plugins with continuous evaluation:
+
+```python
+from attest import Assertion, ContinuousEvalRunner
+from attest.client import AttestClient
+from attest.engine_manager import EngineManager
+
+from plugins.toxicity_checker import check_toxicity
+
+
+async def setup_with_plugin():
+    engine = EngineManager()
+    await engine.start()
+    client = AttestClient(engine)
+
+    # Standard assertions evaluated by the engine
+    assertions = [
+        Assertion(
+            assertion_id="content_check",
+            type="content",
+            spec={"target": "output.message", "check": "forbidden", "values": ["error"]},
+        ),
+    ]
+
+    runner = ContinuousEvalRunner(
+        client=client,
+        assertions=assertions,
+        sample_rate=0.1,
+    )
+    await runner.start()
+
+    return runner, client, engine
+
+
+async def evaluate_with_plugin(runner, client, trace):
+    """Evaluate trace with both engine assertions and custom plugin."""
+    # Engine handles layers 1-7
+    await runner.submit(trace)
+
+    # Plugin handles layer 8 — run independently
+    status, score, explanation = check_toxicity(trace)
+    if status != "pass":
+        # Dispatch alert manually or submit to engine
+        await client.submit_plugin_result(
+            trace_id=trace.trace_id,
+            plugin_name="toxicity-checker",
+            assertion_id="plugin_toxicity",
+            status=status,
+            score=score,
+            explanation=explanation,
+        )
+```
+
+## Plugin Design Guidelines
+
+### Stateless Evaluation
+
+Plugins receive a `Trace` and return a result. Keep evaluation functions stateless:
+
+```python
+# Stateless — receives all data it needs
+def evaluate(trace: Trace) -> tuple[str, float, str]:
+    ...
+```
+
+### Scoring
+
+| Score | Meaning |
+|-------|---------|
+| `1.0` | Full pass |
+| `0.8`-`0.99` | Minor concerns, pass threshold |
+| `0.5`-`0.79` | Moderate issues, soft fail |
+| `0.0`-`0.49` | Serious issues, hard fail |
+
+### Status Mapping
+
+| Status | When to Use |
+|--------|-------------|
+| `pass` | Evaluation criteria fully met |
+| `soft_fail` | Criteria partially met; logged but does not fail tests |
+| `hard_fail` | Criteria not met; fails the test |
+
+### Error Handling
+
+Plugin errors should not crash the evaluation pipeline. Catch exceptions and return a `hard_fail` with an explanatory message:
+
+```python
+def safe_evaluate(trace: Trace) -> tuple[str, float, str]:
+    try:
+        return evaluate(trace)
+    except Exception as exc:
+        return ("hard_fail", 0.0, f"Plugin error: {exc}")
+```
+
+## Example: Custom Metrics Plugin
+
+A plugin that checks response length and readability:
+
+```python
+from __future__ import annotations
+
+from attest._proto.types import Trace
+
+
+def check_response_quality(trace: Trace) -> tuple[str, float, str]:
+    """Check response length and basic quality metrics."""
+    message = trace.output.get("message", "")
+
+    if not message:
+        return ("hard_fail", 0.0, "Empty response")
+
+    word_count = len(message.split())
+
+    # Too short
+    if word_count < 10:
+        return ("soft_fail", 0.4, f"Response too short: {word_count} words")
+
+    # Too long
+    if word_count > 500:
+        return ("soft_fail", 0.6, f"Response too long: {word_count} words")
+
+    # Check for repetition (simple heuristic)
+    sentences = message.split(".")
+    unique_sentences = set(s.strip().lower() for s in sentences if s.strip())
+    if len(sentences) > 3 and len(unique_sentences) < len(sentences) * 0.5:
+        return ("soft_fail", 0.5, "Response contains significant repetition")
+
+    return ("pass", 1.0, f"Response quality acceptable ({word_count} words)")
+```
+
+## JSON-RPC Protocol
+
+Under the hood, `submit_plugin_result` sends this JSON-RPC request:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "submit_plugin_result",
+  "params": {
+    "trace_id": "trc_abc123def456",
+    "plugin_name": "toxicity-checker",
+    "assertion_id": "plugin_toxicity_01",
+    "result": {
+      "assertion_id": "plugin_toxicity_01",
+      "status": "pass",
+      "score": 1.0,
+      "explanation": "No toxic content detected",
+      "cost": 0.0,
+      "duration_ms": 0
+    }
+  }
+}
+```
+
+See the [JSON-RPC Protocol reference](/attest-website/reference/engine/json-rpc-protocol/) for the complete specification.

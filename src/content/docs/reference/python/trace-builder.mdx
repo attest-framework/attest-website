@@ -1,0 +1,399 @@
+---
+title: "TraceBuilder & TraceTree"
+description: "Manual trace construction and multi-agent trace tree analysis in the Python SDK."
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `TraceBuilder` class provides a fluent API for manually constructing `Trace` objects. `TraceTree` enables multi-agent trace analysis including delegation chains, cross-agent queries, and aggregate metrics.
+
+## TraceBuilder
+
+### Constructor
+
+```python
+from attest import TraceBuilder
+
+builder = TraceBuilder(agent_id="my-agent")
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `agent_id` | `str \| None` | `None` | Identifier for the agent producing this trace |
+
+A unique `trace_id` is auto-generated as `trc_{uuid_hex[:12]}`.
+
+### Setting Input
+
+```python
+# Keyword arguments
+builder.set_input(user_message="hello", context="greeting")
+
+# From a dict
+builder.set_input_dict({"user_message": "hello", "context": "greeting"})
+```
+
+### Adding Steps
+
+Four step types correspond to the operations an agent performs:
+
+#### `add_llm_call`
+
+Record a language model invocation.
+
+```python
+builder.add_llm_call(
+    name="gpt-4.1",
+    args={"messages": [{"role": "user", "content": "hello"}]},
+    result={"content": "Hi there!", "model": "gpt-4.1"},
+    metadata={"temperature": 0.7},
+    started_at_ms=1708000000000,
+    ended_at_ms=1708000001500,
+)
+```
+
+#### `add_tool_call`
+
+Record a tool/function invocation.
+
+```python
+builder.add_tool_call(
+    name="search",
+    args={"query": "weather in tokyo"},
+    result={"temperature": 22, "condition": "sunny"},
+)
+```
+
+:::note
+In simulation mode, if a mock is registered for the tool name via `mock_tool`, the mock function is called and its return value replaces the `result` parameter.
+:::
+
+#### `add_retrieval`
+
+Record a RAG retrieval operation.
+
+```python
+builder.add_retrieval(
+    name="vector-search",
+    args={"query": "refund policy", "top_k": 5},
+    result={"documents": ["Policy doc 1", "Policy doc 2"]},
+)
+```
+
+#### `add_step`
+
+Add a raw `Step` object directly.
+
+```python
+from attest import Step
+
+builder.add_step(Step(
+    type="tool_call",
+    name="calculator",
+    args={"expression": "2+2"},
+    result={"value": 4},
+))
+```
+
+### Step Parameters
+
+All `add_*` methods share the same parameter signature:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `str` | required | Step identifier (model name, tool name, etc.) |
+| `args` | `dict[str, Any] \| None` | `None` | Input arguments |
+| `result` | `dict[str, Any] \| None` | `None` | Output result |
+| `metadata` | `dict[str, Any] \| None` | `None` | Arbitrary metadata |
+| `started_at_ms` | `int \| None` | `None` | Start timestamp (epoch ms) |
+| `ended_at_ms` | `int \| None` | `None` | End timestamp (epoch ms) |
+| `agent_id` | `str \| None` | `None` | Agent that produced this step |
+| `agent_role` | `str \| None` | `None` | Role of the agent (e.g., "planner", "executor") |
+
+### Setting Output
+
+```python
+# Keyword arguments
+builder.set_output(message="The weather in Tokyo is 22C and sunny.")
+
+# From a dict
+builder.set_output_dict({"message": "The weather in Tokyo is 22C and sunny."})
+```
+
+:::caution
+`build()` raises `ValueError` if `set_output()` or `set_output_dict()` has not been called. Output is required on every trace.
+:::
+
+### Setting Metadata
+
+```python
+builder.set_metadata(
+    total_tokens=1500,
+    cost_usd=0.003,
+    latency_ms=1200,
+    model="gpt-4.1",
+    timestamp="2025-02-22T10:30:00Z",
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `total_tokens` | `int \| None` | `None` | Total token count |
+| `cost_usd` | `float \| None` | `None` | Total cost in USD |
+| `latency_ms` | `int \| None` | `None` | Wall-clock latency |
+| `model` | `str \| None` | `None` | Primary model used |
+| `timestamp` | `str \| None` | `None` | ISO 8601 timestamp |
+
+### Parent Trace ID
+
+Link a trace to a parent for multi-agent scenarios:
+
+```python
+builder.set_parent_trace_id("trc_abc123def456")
+```
+
+### Building
+
+```python
+trace = builder.build()
+```
+
+Returns a `Trace` dataclass. The builder is not consumed — calling `build()` multiple times produces independent traces sharing the same `trace_id`.
+
+### Complete Example
+
+```python
+from attest import TraceBuilder, expect, AgentResult
+
+builder = TraceBuilder(agent_id="weather-agent")
+
+builder.set_input(query="weather in tokyo")
+
+builder.add_llm_call(
+    name="gpt-4.1",
+    args={"messages": [{"role": "user", "content": "weather in tokyo"}]},
+    result={"content": "Let me check the weather."},
+)
+
+builder.add_tool_call(
+    name="get_weather",
+    args={"city": "tokyo"},
+    result={"temp_c": 22, "condition": "sunny"},
+)
+
+builder.add_llm_call(
+    name="gpt-4.1",
+    args={"messages": [{"role": "user", "content": "summarize weather data"}]},
+    result={"content": "Tokyo is 22C and sunny."},
+)
+
+builder.set_output(message="Tokyo is 22C and sunny.")
+builder.set_metadata(total_tokens=350, cost_usd=0.001, latency_ms=800)
+
+trace = builder.build()
+result = AgentResult(trace=trace)
+
+# Use with expect() DSL
+expect(result).output_contains("Tokyo").cost_under(0.01)
+```
+
+## Trace Dataclass
+
+The `Trace` object produced by `build()`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `trace_id` | `str` | Unique identifier |
+| `output` | `dict[str, Any]` | Agent output (required) |
+| `schema_version` | `int` | Protocol version (always `1`) |
+| `agent_id` | `str \| None` | Agent identifier |
+| `input` | `dict[str, Any] \| None` | Agent input |
+| `steps` | `list[Step]` | Ordered execution steps |
+| `metadata` | `TraceMetadata \| None` | Aggregate metrics |
+| `parent_trace_id` | `str \| None` | Parent trace link |
+
+### Step Dataclass
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `str` | One of: `llm_call`, `tool_call`, `retrieval`, `agent_call` |
+| `name` | `str` | Step identifier |
+| `args` | `dict[str, Any] \| None` | Input arguments |
+| `result` | `dict[str, Any] \| None` | Output result |
+| `sub_trace` | `Trace \| None` | Nested trace for `agent_call` steps |
+| `metadata` | `dict[str, Any] \| None` | Arbitrary metadata |
+| `started_at_ms` | `int \| None` | Start timestamp |
+| `ended_at_ms` | `int \| None` | End timestamp |
+| `agent_id` | `str \| None` | Agent identifier |
+| `agent_role` | `str \| None` | Agent role |
+
+### Serialization
+
+Both `Trace` and `Step` provide `to_dict()` and `from_dict()` for JSON serialization:
+
+```python
+# Serialize
+trace_dict = trace.to_dict()
+
+# Deserialize
+restored = Trace.from_dict(trace_dict)
+```
+
+---
+
+## TraceTree
+
+`TraceTree` wraps a root `Trace` and provides multi-agent analysis over the tree formed by `agent_call` steps with nested `sub_trace` objects.
+
+### Constructor
+
+```python
+from attest import TraceTree
+
+tree = TraceTree(root=trace)
+```
+
+Or from an `AgentResult`:
+
+```python
+tree = result.trace_tree()
+```
+
+### Properties
+
+#### `agents`
+
+List all `agent_id` values in the tree (depth-first).
+
+```python
+tree.agents  # ["orchestrator", "researcher", "writer"]
+```
+
+#### `depth`
+
+Maximum nesting depth. Root with no children = `0`.
+
+```python
+tree.depth  # 2
+```
+
+#### `delegations`
+
+List of `(parent_agent_id, child_agent_id)` pairs.
+
+```python
+tree.delegations
+# [("orchestrator", "researcher"), ("orchestrator", "writer")]
+```
+
+#### `aggregate_tokens`
+
+Sum of `total_tokens` across all traces in the tree.
+
+```python
+tree.aggregate_tokens  # 4500
+```
+
+#### `aggregate_cost`
+
+Sum of `cost_usd` across all traces.
+
+```python
+tree.aggregate_cost  # 0.012
+```
+
+#### `aggregate_latency`
+
+Sum of `latency_ms` across all traces.
+
+```python
+tree.aggregate_latency  # 3200
+```
+
+### Methods
+
+#### `find_agent(agent_id: str) -> Trace | None`
+
+Find a sub-trace by `agent_id`. Returns `None` if not found.
+
+```python
+researcher_trace = tree.find_agent("researcher")
+if researcher_trace:
+    print(researcher_trace.output)
+```
+
+#### `flatten() -> list[Trace]`
+
+Return all traces in depth-first order.
+
+```python
+all_traces = tree.flatten()
+# [root_trace, researcher_trace, writer_trace]
+```
+
+#### `all_tool_calls() -> list[Step]`
+
+Return all `tool_call` steps across the entire tree.
+
+```python
+tools = tree.all_tool_calls()
+for step in tools:
+    print(f"{step.agent_id}: {step.name}")
+```
+
+### Multi-Agent Example
+
+```python
+from attest import TraceBuilder, TraceTree, delegate, agent
+
+@agent("orchestrator")
+def orchestrator(builder, task):
+    builder.add_llm_call(
+        name="gpt-4.1",
+        args={"messages": [{"role": "user", "content": task}]},
+        result={"content": "I'll delegate this to specialists."},
+    )
+
+    with delegate("researcher") as child:
+        child.add_tool_call(
+            name="search",
+            args={"query": task},
+            result={"documents": ["doc1", "doc2"]},
+        )
+        child.set_output(message="Found 2 relevant documents.")
+
+    with delegate("writer") as child:
+        child.add_llm_call(
+            name="gpt-4.1",
+            args={"messages": [{"role": "user", "content": "summarize docs"}]},
+            result={"content": "Summary of findings."},
+        )
+        child.set_output(message="Summary of findings.")
+
+    return {"message": "Task complete: Summary of findings."}
+
+result = orchestrator(task="research quantum computing")
+tree = result.trace_tree()
+
+print(tree.agents)        # ["orchestrator", "researcher", "writer"]
+print(tree.depth)         # 1
+print(tree.delegations)   # [("orchestrator", "researcher"), ("orchestrator", "writer")]
+```
+
+### TraceTree Assertions
+
+The `expect()` DSL includes Layer 7 (trace tree) assertions that operate on the tree structure:
+
+```python
+expect(result) \
+    .agent_called("researcher") \
+    .agent_called("writer") \
+    .delegation_depth(2) \
+    .agent_output_contains("researcher", "documents") \
+    .cross_agent_data_flow("researcher", "writer", "documents") \
+    .follows_transitions([("orchestrator", "researcher"), ("orchestrator", "writer")]) \
+    .aggregate_cost_under(0.05) \
+    .aggregate_tokens_under(10000)
+```
+
+See the [Expect DSL reference](/attest-website/reference/python/expect-dsl/) for the full list of trace tree assertions.

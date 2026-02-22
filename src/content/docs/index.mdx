@@ -1,0 +1,117 @@
+---
+title: Attest Framework
+description: Test your AI agents like you test your code. 8-layer assertion pipeline, 11 framework adapters, multi-agent support.
+template: splash
+hero:
+  tagline: Test your AI agents like you test your code
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get Started (Python)
+      link: /attest-website/getting-started/python/
+      icon: right-arrow
+      variant: primary
+    - text: Get Started (TypeScript)
+      link: /attest-website/getting-started/typescript/
+      icon: right-arrow
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import PipelineDiagram from '@components/PipelineDiagram.astro';
+import ComparisonTable from '@components/ComparisonTable.astro';
+
+## Why Attest?
+
+**57% of organizations run AI agents in production without systematic testing.** Most testing tools force expensive LLM-as-judge calls for every assertion. Attest takes a different approach: an 8-layer graduated assertion pipeline that starts with free deterministic checks and only escalates to costly LLM evaluation when cheaper layers can't answer the question.
+
+## The 8-Layer Assertion Pipeline
+
+<PipelineDiagram />
+
+## What It Looks Like
+
+### Python
+
+```python
+from attest import agent, expect
+
+@agent("weather-agent")
+async def weather_agent(query: str) -> str:
+    # Your agent implementation
+    ...
+
+async def test_weather_agent():
+    result = await weather_agent("What's the weather in Tokyo?")
+
+    expect(result).to_have_steps(["llm_call", "tool_call"])  # Layer 3: Free
+    expect(result).output_to_contain("Tokyo")                 # Layer 4: Free
+    expect(result).output_to_be_similar_to(                   # Layer 5: ~$0.001
+        "Current weather conditions in Tokyo"
+    )
+    expect(result).output_to_satisfy(                         # Layer 6: ~$0.01
+        "Provides accurate, helpful weather information"
+    )
+```
+
+### TypeScript
+
+```typescript
+import { Agent, attestExpect } from '@attest-ai/core';
+
+const weatherAgent = new Agent('weather-agent', async (query: string) => {
+  // Your agent implementation
+});
+
+test('weather agent returns weather data', async () => {
+  const result = await weatherAgent.run('What is the weather in Tokyo?');
+
+  attestExpect(result).toHaveSteps(['llm_call', 'tool_call']);  // Layer 3: Free
+  attestExpect(result).outputToContain('Tokyo');                 // Layer 4: Free
+  attestExpect(result).outputToBeSimilarTo(                      // Layer 5: ~$0.001
+    'Current weather conditions in Tokyo'
+  );
+  attestExpect(result).outputToSatisfy(                          // Layer 6: ~$0.01
+    'Provides accurate, helpful weather information'
+  );
+});
+```
+
+## Features
+
+<CardGrid stagger>
+  <Card title="8 Assertion Layers" icon="list-format">
+    Graduate from free deterministic checks to expensive LLM evaluation. Layers 1-4 are free and instant. Only pay for what you need.
+  </Card>
+  <Card title="11 Framework Adapters" icon="puzzle">
+    OpenAI, Anthropic, Gemini, Ollama, LangChain, LlamaIndex, CrewAI, Google ADK, OpenTelemetry - plug in your stack.
+  </Card>
+  <Card title="Multi-Agent Testing" icon="seti:git">
+    Trace delegation chains across agents. Assert on parent-child relationships, temporal ordering, and cross-agent data flow.
+  </Card>
+  <Card title="Simulation Mode" icon="rocket">
+    Test without API calls. Mock tools, inject faults, simulate adversarial users - all deterministic and free.
+  </Card>
+  <Card title="Continuous Evaluation" icon="approve-check-circle">
+    Run assertions on production traces. Sample, evaluate, and alert on drift - Slack, webhooks, custom dispatchers.
+  </Card>
+  <Card title="Cost Tracking" icon="document">
+    Know exactly what each test costs. Set tier budgets, soft failure thresholds, and cost-per-assertion metrics.
+  </Card>
+</CardGrid>
+
+## How It Compares
+
+<ComparisonTable />
+
+## Get Started
+
+```bash
+# Python
+pip install attest-ai
+
+# TypeScript
+npm install @attest-ai/core @attest-ai/vitest
+```
+
+Check the [Python quickstart](/attest-website/getting-started/python/) or [TypeScript quickstart](/attest-website/getting-started/typescript/) for a complete walkthrough.

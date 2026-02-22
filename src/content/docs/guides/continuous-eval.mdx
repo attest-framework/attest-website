@@ -1,0 +1,278 @@
+---
+title: "Continuous Evaluation"
+description: "Run assertions on production traces with sampling, background evaluation, and alerting."
+---
+
+Continuous evaluation lets you run Attest assertions on live production traces without blocking request handling. The `ContinuousEvalRunner` samples traces, evaluates them in the background, and dispatches alerts when assertions fail.
+
+## Overview
+
+```
+Production Traffic
+        │
+        ▼
+   ┌─────────┐    sample_rate    ┌──────────────┐
+   │  Agent   │ ───────────────► │ ContinuousEval│
+   │  Output  │                  │   Runner      │
+   └─────────┘                  └──────┬───────┘
+                                       │
+                              ┌────────┼────────┐
+                              ▼        ▼        ▼
+                           Engine   Sampler  AlertDispatcher
+                         (evaluate)  (filter)  (webhook/Slack)
+```
+
+## Configuration
+
+### Via `attest.config()`
+
+```python
+from attest import config
+
+config(
+    sample_rate=0.1,                                    # Evaluate 10% of traces
+    alert_webhook="https://hooks.example.com/attest",   # Generic webhook
+    alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",  # Slack
+)
+```
+
+### Via Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ATTEST_SAMPLE_RATE` | Fraction of traces to evaluate (0.0-1.0) | `0.0` |
+| `ATTEST_ALERT_WEBHOOK` | Webhook URL for drift alerts | None |
+| `ATTEST_ALERT_SLACK_URL` | Slack webhook URL for alerts | None |
+
+Programmatic `config()` calls take priority over environment variables.
+
+## ContinuousEvalRunner
+
+### Setup
+
+```python
+from attest import Assertion, ContinuousEvalRunner
+from attest.client import AttestClient
+from attest.engine_manager import EngineManager
+
+# Start engine
+engine = EngineManager()
+await engine.start()
+client = AttestClient(engine)
+
+# Define production assertions
+assertions = [
+    Assertion(
+        assertion_id="prod_content_01",
+        type="content",
+        spec={"target": "output.message", "check": "forbidden", "values": ["error", "stacktrace"]},
+    ),
+    Assertion(
+        assertion_id="prod_constraint_01",
+        type="constraint",
+        spec={"field": "metadata.latency_ms", "operator": "lte", "value": 5000},
+    ),
+    Assertion(
+        assertion_id="prod_constraint_02",
+        type="constraint",
+        spec={"field": "metadata.cost_usd", "operator": "lte", "value": 0.10},
+    ),
+]
+
+# Create runner
+runner = ContinuousEvalRunner(
+    client=client,
+    assertions=assertions,
+    sample_rate=0.1,
+    alert_webhook="https://hooks.example.com/attest",
+    alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
+)
+```
+
+### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `client` | `AttestClient` | required | Protocol client connected to the engine |
+| `assertions` | `list[Assertion]` | required | Assertions to evaluate on every sampled trace |
+| `sample_rate` | `float` | `1.0` | Fraction of traces to evaluate (0.0-1.0) |
+| `alert_webhook` | `str \| None` | `None` | Generic webhook URL for alerts |
+| `alert_slack_url` | `str \| None` | `None` | Slack incoming webhook URL |
+
+### Background Mode
+
+Start a background asyncio task that dequeues and evaluates traces:
+
+```python
+# Start background loop
+await runner.start()
+
+# Submit traces from your request handler
+async def handle_request(request):
+    result = await my_agent(request.query)
+    await runner.submit(result.trace)  # Non-blocking enqueue
+    return result
+
+# When shutting down
+await runner.stop()
+```
+
+### Inline Mode
+
+Evaluate a single trace synchronously (respects the sampler):
+
+```python
+eval_result = await runner.evaluate_trace(trace)
+if eval_result is None:
+    # Trace was not sampled
+    pass
+elif eval_result.total_cost > 0:
+    # Assertion used a paid layer
+    log_cost(eval_result.total_cost)
+```
+
+`evaluate_trace` returns `None` when the sampler skips the trace, or an `EvaluateBatchResult` with assertion outcomes.
+
+## Sampler
+
+The `Sampler` class implements probabilistic filtering:
+
+```python
+from attest import Sampler
+
+sampler = Sampler(rate=0.05)  # 5% sample rate
+
+if sampler.should_sample():
+    # This trace was selected
+    ...
+```
+
+| Rate | Behavior |
+|------|----------|
+| `0.0` | Never sample (evaluation disabled) |
+| `0.5` | 50% of traces evaluated |
+| `1.0` | Every trace evaluated |
+
+:::caution
+Setting `sample_rate=1.0` in production evaluates every request. For paid assertion layers (5-6), this adds cost to every request. Use `0.01`-`0.1` for production workloads with LLM judge assertions.
+:::
+
+## AlertDispatcher
+
+Routes failure notifications to webhooks and Slack.
+
+```python
+from attest import AlertDispatcher
+
+dispatcher = AlertDispatcher(
+    webhook_url="https://hooks.example.com/attest",
+    slack_url="https://hooks.slack.com/services/T.../B.../xxx",
+)
+
+await dispatcher.dispatch({
+    "drift_type": "content_violation",
+    "score": 0.3,
+    "trace_id": "trc_abc123def456",
+    "assertion_id": "prod_content_01",
+    "explanation": "Output contained forbidden term 'stacktrace'",
+})
+```
+
+### Webhook Payload
+
+Generic webhooks receive the raw alert dict as a JSON POST body:
+
+```json
+{
+  "drift_type": "content_violation",
+  "score": 0.3,
+  "trace_id": "trc_abc123def456",
+  "assertion_id": "prod_content_01",
+  "explanation": "Output contained forbidden term 'stacktrace'"
+}
+```
+
+### Slack Message
+
+Slack webhooks receive a formatted text message:
+
+```
+[attest] drift alert — type=content_violation score=0.3 trace_id=trc_abc123def456
+```
+
+### Error Handling
+
+Alert dispatch errors are logged but never raised. A failed webhook does not block evaluation or crash the runner.
+
+## Production Integration Example
+
+Full FastAPI integration:
+
+```python
+import asyncio
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from attest import Assertion, ContinuousEvalRunner
+from attest.client import AttestClient
+from attest.engine_manager import EngineManager
+
+runner: ContinuousEvalRunner | None = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global runner
+    engine = EngineManager()
+    await engine.start()
+    client = AttestClient(engine)
+
+    runner = ContinuousEvalRunner(
+        client=client,
+        assertions=[
+            Assertion(
+                assertion_id="latency",
+                type="constraint",
+                spec={"field": "metadata.latency_ms", "operator": "lte", "value": 3000},
+            ),
+            Assertion(
+                assertion_id="no_errors",
+                type="content",
+                spec={
+                    "target": "output.message",
+                    "check": "forbidden",
+                    "values": ["internal error", "traceback"],
+                },
+            ),
+        ],
+        sample_rate=0.05,
+        alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
+    )
+    await runner.start()
+
+    yield
+
+    await runner.stop()
+    await engine.stop()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post("/chat")
+async def chat(query: str):
+    result = await my_agent(query)
+    if runner:
+        await runner.submit(result.trace)
+    return {"response": result.trace.output.get("message")}
+```
+
+## Assertion Selection for Production
+
+Layers 1-4 are free and add no latency cost. Prioritize these for production:
+
+| Layer | Type | Production Use |
+|-------|------|---------------|
+| 2 | `constraint` | Latency SLOs, cost budgets, token limits |
+| 3 | `trace` | Required tools called, no infinite loops |
+| 4 | `content` | Forbidden terms, required keywords, regex patterns |
+
+Use layers 5-6 sparingly in production. Set `sample_rate` low (`0.01`-`0.05`) when using embedding or LLM judge assertions.

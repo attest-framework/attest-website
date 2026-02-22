@@ -1,0 +1,43 @@
+---
+interface Props {
+  id?: string;
+}
+
+const { id = 'code-tabs-' + Math.random().toString(36).slice(2, 8) } = Astro.props;
+---
+
+<div class="code-tabs" id={id}>
+  <div class="tab-bar" role="tablist">
+    <button class="tab-button active" role="tab" aria-selected="true" data-tab="python">Python</button>
+    <button class="tab-button" role="tab" aria-selected="false" data-tab="typescript">TypeScript</button>
+  </div>
+  <div class="tab-panel active" role="tabpanel" data-panel="python">
+    <slot name="python" />
+  </div>
+  <div class="tab-panel" role="tabpanel" data-panel="typescript">
+    <slot name="typescript" />
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.code-tabs').forEach((tabs) => {
+    const buttons = tabs.querySelectorAll('.tab-button');
+    const panels = tabs.querySelectorAll('.tab-panel');
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.getAttribute('data-tab');
+
+        buttons.forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        panels.forEach((p) => p.classList.remove('active'));
+
+        button.classList.add('active');
+        button.setAttribute('aria-selected', 'true');
+        tabs.querySelector(`[data-panel="${tab}"]`)?.classList.add('active');
+      });
+    });
+  });
+</script>

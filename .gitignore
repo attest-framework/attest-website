@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+*.tgz
+.env
+.env.*
+.npmrc
+.pnpm-store/

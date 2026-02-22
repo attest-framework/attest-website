@@ -1,0 +1,98 @@
+---
+title: "Attest v0.4.2 Release"
+description: "LangChain callback fix, expect(Trace) overload, plugin async fix, TypeScript expect(Trace) port, and version test improvements."
+---
+
+**Released: February 22, 2026**
+
+Attest v0.4.2 is a patch release fixing three SDK bugs and adding a convenience API for both Python and TypeScript.
+
+## What Changed
+
+### LangChain Callback Protocol Fix
+
+The `LangChainCallbackHandler` was missing required attributes from LangChain's callback protocol. This caused `AttributeError` exceptions when LangChain introspected the handler object during chain execution. The handler now implements all required protocol attributes.
+
+**Affected users:** Anyone using `LangChainCallbackHandler` or `LangChainAdapter` with LangChain 0.2+.
+
+### `expect(Trace)` Overload
+
+The `expect()` function now accepts either an `AgentResult` or a raw `Trace` object. When a `Trace` is passed, it is automatically wrapped in an `AgentResult`.
+
+**Before (v0.4.1):**
+
+```python
+from attest import expect, AgentResult
+
+# Had to wrap manually
+result = AgentResult(trace=trace)
+expect(result).output_contains("hello")
+```
+
+**After (v0.4.2):**
+
+```python
+from attest import expect
+
+# Pass Trace directly
+expect(trace).output_contains("hello")
+
+# AgentResult still works
+expect(result).output_contains("hello")
+```
+
+This is useful when constructing traces manually with `TraceBuilder` or receiving traces from adapters that return raw `Trace` objects.
+
+### Plugin Async Event Loop Fix
+
+The plugin evaluation path had an issue where `submit_plugin_result` could fail when called from within an already-running async event loop. The fix ensures plugin results are submitted on the engine's dedicated background loop thread, avoiding `RuntimeError: This event loop is already running` errors.
+
+**Affected users:** Anyone using custom plugins with the pytest-asyncio integration.
+
+### TypeScript `expect(Trace)` Port
+
+The TypeScript SDK's `attestExpect()` function now matches the Python SDK's behavior — it accepts both `AgentResult` and raw `Trace` objects:
+
+```typescript
+import { attestExpect, TraceBuilder } from '@attest-ai/core';
+
+const trace = new TraceBuilder('my-agent')
+  .setOutput({ message: 'hello' })
+  .build();
+
+// Pass Trace directly
+attestExpect(trace).outputToContain('hello');
+```
+
+### Version Test Improvements
+
+Test files `test_version.py` and `test_cli.py` previously hardcoded version strings, causing test failures on every version bump. Tests now import and assert against the `__version__` constant:
+
+```python
+from attest import __version__
+
+def test_version():
+    assert __version__  # No hardcoded string
+```
+
+## Upgrade
+
+```bash
+# Python
+pip install --upgrade attest-ai
+
+# TypeScript
+npm install @attest-ai/core@0.4.2 @attest-ai/vitest@0.4.2
+```
+
+No breaking changes. No engine binary changes — `ENGINE_VERSION` remains `0.4.0`.
+
+## Changelog
+
+| PR | Description |
+|----|-------------|
+| #23 | LangChain callback protocol attrs, `expect(Trace)` overload, plugin async event loop fix |
+| #24 | Python version bump, changelog, TypeScript `expect(Trace)` port |
+| #25 | TypeScript version bump (package.json, version.ts) |
+| #26 | uv.lock sync |
+| #27 | Fix hardcoded version strings in test files |
