@@ -1,70 +1,243 @@
-/* Attest Framework — Brand Overrides for Starlight */
+/* ================================================================
+   Attest Framework — Dark-Only Theme (logo-derived palette)
+   ================================================================
+   Single dark theme. No light mode. Colors extracted from the
+   glowing "A" logo: ice-white → mint → teal gradient on dark navy.
 
-/* Light theme: gray-1 = lightest, gray-7 = darkest */
-:root {
-  /* Teal accent for branding — links, buttons, active states */
-  --sl-color-accent-low: #f0fdfa;
-  --sl-color-accent: #0f766e;
-  --sl-color-accent-high: #134e4a;
+   IMPORTANT: Starlight's gray scale convention is gray-1 = lightest,
+   gray-7 = darkest. Our design palette is the inverse (gray-1 = darkest
+   surface, gray-7 = lightest text). We keep our intuitive ordering and
+   override ALL Starlight derived variables explicitly.
+   ================================================================ */
 
-  /* Neutral Slate gray scale for text, borders, backgrounds */
-  --sl-color-white: #ffffff;
-  --sl-color-gray-1: #f1f5f9;
-  --sl-color-gray-2: #e2e8f0;
-  --sl-color-gray-3: #94a3b8;
-  --sl-color-gray-4: #64748b;
-  --sl-color-gray-5: #475569;
-  --sl-color-gray-6: #334155;
-  --sl-color-gray-7: #1e293b;
-  --sl-color-black: #0f172a;
+/* ----------------------------------------------------------------
+   ROOT TOKENS
+   ---------------------------------------------------------------- */
+:root,
+:root[data-theme="dark"] {
+  /* Background hierarchy (progressive lightness for elevation) */
+  --sl-color-black: #0C1017;
+  --sl-color-gray-1: #111822;
+  --sl-color-gray-2: #18202B;
+  --sl-color-gray-3: #1F2937;
+  --sl-color-gray-4: #4B5C6F;
+  --sl-color-gray-5: #8899AB;
+  --sl-color-gray-6: #BCC8D6;
+  --sl-color-gray-7: #E0E8F0;
+  --sl-color-white: #F0F5FA;
 
-  /* Assertion tier colors */
-  --attest-tier-free: #16a34a;
-  --attest-tier-cheap: #d97706;
-  --attest-tier-expensive: #dc2626;
+  /* Accent (logo gradient: ice-white apex → mint → teal) */
+  --sl-color-accent: #2DD4BF;
+  --sl-color-accent-high: #5EEAD4;
+  --sl-color-accent-low: #0A2E2B;
+
+  /* Starlight derived variables — explicit overrides.
+     These normally reference gray-N assuming gray-1=lightest, gray-7=darkest.
+     We remap them to our inverted scale. */
+  --sl-color-bg: var(--sl-color-black);
+  --sl-color-bg-nav: var(--sl-color-gray-1);
+  --sl-color-bg-sidebar: var(--sl-color-gray-1);
+  --sl-color-bg-inline-code: var(--sl-color-gray-2);
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-text: var(--sl-color-gray-6);
+  --sl-color-text-accent: var(--sl-color-accent-high);
+  --sl-color-text-invert: var(--sl-color-black);
+  --sl-color-hairline-light: var(--sl-color-gray-3);
+  --sl-color-hairline: var(--sl-color-gray-3);
+  --sl-color-hairline-shade: var(--sl-color-gray-4);
+  --sl-color-backdrop-overlay: rgba(12, 16, 23, 0.65);
+
+  /* Custom accent extensions */
+  --attest-accent-glow: rgba(45, 212, 191, 0.15);
+  --attest-accent-subtle: rgba(45, 212, 191, 0.06);
+
+  /* Tier colors (boosted saturation/lightness for dark bg) */
+  --attest-tier-free: #22C55E;
+  --attest-tier-cheap: #F59E0B;
+  --attest-tier-expensive: #EF4444;
+  --attest-tier-free-bg: rgba(34, 197, 94, 0.10);
+  --attest-tier-cheap-bg: rgba(245, 158, 11, 0.10);
+  --attest-tier-expensive-bg: rgba(239, 68, 68, 0.10);
+
+  /* Borders */
+  --attest-border-subtle: #1F2937;
+  --attest-border-medium: #2A3544;
+  --attest-border-accent: rgba(45, 212, 191, 0.3);
+
+  /* Semantic */
+  --attest-success: #22C55E;
+  --attest-warning: #F59E0B;
+  --attest-error: #EF4444;
+  --attest-info: #3B82F6;
+
+  /* Typography stacks */
+  --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
 
   /* Component spacing */
   --attest-section-gap: 3rem;
 }
 
-/* Dark theme: only override accent + invert gray scale */
-/* white/black are absolute (lightest/darkest) — Starlight handles the swap */
-:root[data-theme="dark"] {
-  --sl-color-accent-low: #042f2e;
-  --sl-color-accent: #14b8a6;
-  --sl-color-accent-high: #ccfbf1;
-
-  --sl-color-gray-1: #1e293b;
-  --sl-color-gray-2: #334155;
-  --sl-color-gray-3: #475569;
-  --sl-color-gray-4: #64748b;
-  --sl-color-gray-5: #94a3b8;
-  --sl-color-gray-6: #cbd5e1;
-  --sl-color-gray-7: #e2e8f0;
+/* Kill any light-mode token leakage — mirror everything from above */
+:root[data-theme="light"] {
+  --sl-color-black: #0C1017;
+  --sl-color-gray-1: #111822;
+  --sl-color-gray-2: #18202B;
+  --sl-color-gray-3: #1F2937;
+  --sl-color-gray-4: #4B5C6F;
+  --sl-color-gray-5: #8899AB;
+  --sl-color-gray-6: #BCC8D6;
+  --sl-color-gray-7: #E0E8F0;
+  --sl-color-white: #F0F5FA;
+  --sl-color-accent: #2DD4BF;
+  --sl-color-accent-high: #5EEAD4;
+  --sl-color-accent-low: #0A2E2B;
+  --sl-color-bg: #0C1017;
+  --sl-color-bg-nav: #111822;
+  --sl-color-bg-sidebar: #111822;
+  --sl-color-bg-inline-code: #18202B;
+  --sl-color-bg-accent: #2DD4BF;
+  --sl-color-text: #BCC8D6;
+  --sl-color-text-accent: #5EEAD4;
+  --sl-color-text-invert: #0C1017;
+  --sl-color-hairline-light: #1F2937;
+  --sl-color-hairline: #1F2937;
+  --sl-color-hairline-shade: #4B5C6F;
 }
 
-/* Hero section */
+/* ----------------------------------------------------------------
+   GLOBAL OVERRIDES
+   ---------------------------------------------------------------- */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus ring: accent outline + glow */
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px var(--attest-accent-glow);
+}
+
+/* ----------------------------------------------------------------
+   STARLIGHT HEADER / NAV
+   ---------------------------------------------------------------- */
+header.header {
+  background-color: var(--sl-color-gray-1);
+  border-bottom: 1px solid var(--attest-border-subtle);
+}
+
+/* Search input */
+site-search button {
+  background-color: var(--sl-color-gray-2);
+  border-color: var(--attest-border-medium);
+}
+
+/* ----------------------------------------------------------------
+   STARLIGHT SIDEBAR
+   ---------------------------------------------------------------- */
+starlight-menu-button + nav a[aria-current="page"],
+.sidebar-content a[aria-current="page"] {
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent);
+}
+
+/* ----------------------------------------------------------------
+   STARLIGHT HERO (built-in component)
+   Targets the .hero class generated by Starlight's Hero.astro.
+   ---------------------------------------------------------------- */
+.hero {
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
+    var(--sl-color-gray-1);
+  border-bottom: 1px solid var(--attest-border-subtle);
+  padding-bottom: 3rem;
+}
+
+/* Gradient text on hero H1 (white → teal, mirrors logo "A") */
+.hero h1 {
+  background: linear-gradient(135deg, #F0F5FA 30%, #2DD4BF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Hero tagline */
+.hero .tagline {
+  color: var(--sl-color-gray-5);
+}
+
+/* Starlight link buttons (hero CTAs) */
+.sl-link-button.primary {
+  background: var(--sl-color-accent);
+  color: var(--sl-color-black);
+  border-color: var(--sl-color-accent);
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sl-link-button.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px var(--attest-accent-glow);
+}
+
+.sl-link-button.minimal {
+  color: var(--sl-color-gray-6);
+  border-color: var(--attest-border-medium);
+  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sl-link-button.minimal:hover {
+  color: var(--sl-color-accent);
+  border-color: var(--sl-color-accent);
+  transform: translateY(-1px);
+}
+
+/* ----------------------------------------------------------------
+   CUSTOM HERO SECTION (used in MDX content via .hero-section class)
+   ---------------------------------------------------------------- */
 .hero-section {
+  position: relative;
   text-align: center;
-  padding: 4rem 1.5rem;
-  background: linear-gradient(135deg, #042f2e 0%, #0a2e2b 100%);
+  padding: 5rem 2rem;
   border-radius: 1rem;
   margin-bottom: var(--attest-section-gap);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
+    var(--sl-color-gray-1);
+}
+
+/* Dot grid texture */
+.hero-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
 }
 
 .hero-section h1 {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: #f1f5f9;
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--sl-color-white);
   margin-bottom: 1rem;
   line-height: 1.2;
+  position: relative;
+  background: linear-gradient(135deg, #F0F5FA 30%, #2DD4BF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .hero-section .subtitle {
   font-size: 1.25rem;
-  color: #94a3b8;
+  color: var(--sl-color-gray-5);
   max-width: 640px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 2.5rem;
+  position: relative;
 }
 
 .hero-buttons {
@@ -72,35 +245,45 @@
   gap: 1rem;
   justify-content: center;
   flex-wrap: wrap;
+  position: relative;
 }
 
 .hero-buttons a {
   display: inline-flex;
   align-items: center;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.75rem;
   border-radius: 0.5rem;
   font-weight: 600;
+  font-size: 0.95rem;
   text-decoration: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.hero-buttons a:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 .hero-buttons .primary {
-  background: #0f766e;
-  color: #f1f5f9;
+  background: var(--sl-color-accent);
+  color: var(--sl-color-black);
+}
+
+.hero-buttons .primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px var(--attest-accent-glow);
 }
 
 .hero-buttons .secondary {
   background: transparent;
-  border: 2px solid #94a3b8;
-  color: #cbd5e1;
+  border: 2px solid var(--attest-border-medium);
+  color: var(--sl-color-gray-6);
 }
 
-/* Feature grid */
+.hero-buttons .secondary:hover {
+  border-color: var(--sl-color-accent);
+  color: var(--sl-color-accent);
+  transform: translateY(-1px);
+}
+
+/* ----------------------------------------------------------------
+   FEATURE CARDS
+   ---------------------------------------------------------------- */
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -110,35 +293,39 @@
 
 .feature-card {
   padding: 1.5rem;
-  border: 1px solid var(--sl-color-gray-3);
+  border: 1px solid var(--attest-border-medium);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 0.75rem;
-  background: var(--sl-color-bg);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: var(--sl-color-gray-1);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .feature-card:hover {
   border-color: var(--sl-color-accent);
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.15);
+  background: var(--sl-color-gray-2);
+  box-shadow: 0 0 20px var(--attest-accent-glow);
 }
 
 .feature-card .icon {
   font-size: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .feature-card h3 {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
 
 .feature-card p {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--sl-color-gray-5);
   margin: 0;
 }
 
-/* Pipeline diagram */
+/* ----------------------------------------------------------------
+   PIPELINE DIAGRAM
+   ---------------------------------------------------------------- */
 .pipeline-diagram {
   display: flex;
   flex-direction: column;
@@ -155,33 +342,42 @@
   gap: 1rem;
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
-  border-left: 4px solid;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border-left: 3px solid;
+  background: var(--sl-color-gray-1);
+  transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .pipeline-layer:hover {
   transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .pipeline-layer.tier-free {
   border-color: var(--attest-tier-free);
-  background: rgba(22, 163, 74, 0.08);
+}
+
+.pipeline-layer.tier-free:hover {
+  background: var(--attest-tier-free-bg);
 }
 
 .pipeline-layer.tier-cheap {
   border-color: var(--attest-tier-cheap);
-  background: rgba(217, 119, 6, 0.08);
+}
+
+.pipeline-layer.tier-cheap:hover {
+  background: var(--attest-tier-cheap-bg);
 }
 
 .pipeline-layer.tier-expensive {
   border-color: var(--attest-tier-expensive);
-  background: rgba(220, 38, 38, 0.08);
+}
+
+.pipeline-layer.tier-expensive:hover {
+  background: var(--attest-tier-expensive-bg);
 }
 
 .pipeline-layer .layer-number {
-  font-weight: 800;
-  font-size: 0.8rem;
+  font-weight: 700;
+  font-size: 0.75rem;
   width: 2rem;
   height: 2rem;
   display: flex;
@@ -189,21 +385,22 @@
   justify-content: center;
   border-radius: 50%;
   flex-shrink: 0;
+  color: var(--sl-color-black);
 }
 
 .tier-free .layer-number {
   background: var(--attest-tier-free);
-  color: white;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
 }
 
 .tier-cheap .layer-number {
   background: var(--attest-tier-cheap);
-  color: white;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
 }
 
 .tier-expensive .layer-number {
   background: var(--attest-tier-expensive);
-  color: white;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
 }
 
 .pipeline-layer .layer-info {
@@ -211,8 +408,9 @@
 }
 
 .pipeline-layer .layer-name {
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--sl-color-gray-7);
 }
 
 .pipeline-layer .layer-desc {
@@ -226,26 +424,30 @@
   white-space: nowrap;
 }
 
-/* Comparison table */
+/* ----------------------------------------------------------------
+   COMPARISON TABLE
+   ---------------------------------------------------------------- */
 .comparison-table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--attest-section-gap) 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .comparison-table th,
 .comparison-table td {
   padding: 0.75rem 1rem;
   text-align: center;
-  border-bottom: 1px solid var(--sl-color-gray-3);
+  border-bottom: 1px solid var(--attest-border-subtle);
 }
 
 .comparison-table th {
-  font-weight: 700;
-  font-size: 0.8rem;
+  font-weight: 600;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  color: var(--sl-color-gray-5);
+  border-bottom: 2px solid var(--attest-border-medium);
 }
 
 .comparison-table th:first-child,
@@ -253,9 +455,21 @@
   text-align: left;
 }
 
+.comparison-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.comparison-table tbody tr:hover {
+  background: var(--sl-color-gray-2);
+}
+
 .comparison-table tr.highlight {
-  background: rgba(15, 118, 110, 0.1);
+  background: var(--attest-accent-subtle);
   font-weight: 600;
+}
+
+.comparison-table tr.highlight:hover {
+  background: rgba(45, 212, 191, 0.10);
 }
 
 .comparison-table .check {
@@ -263,10 +477,12 @@
 }
 
 .comparison-table .cross {
-  color: var(--sl-color-gray-3);
+  color: var(--sl-color-gray-4);
 }
 
-/* Code tabs */
+/* ----------------------------------------------------------------
+   CODE TABS
+   ---------------------------------------------------------------- */
 .code-tabs {
   margin: 1.5rem 0;
 }
@@ -274,20 +490,25 @@
 .code-tabs .tab-bar {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--sl-color-gray-3);
+  border-bottom: 2px solid var(--attest-border-medium);
+  background: var(--sl-color-gray-1);
 }
 
 .code-tabs .tab-button {
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 1rem;
   background: none;
   border: none;
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
+  font-weight: 500;
+  font-size: 0.8rem;
   color: var(--sl-color-gray-4);
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.code-tabs .tab-button:hover {
+  color: var(--sl-color-gray-5);
 }
 
 .code-tabs .tab-button.active {
@@ -303,7 +524,109 @@
   display: block;
 }
 
-/* Responsive */
+/* ----------------------------------------------------------------
+   CODE BLOCKS (Expressive Code / Starlight)
+   Sunken depth: darker than page background.
+   EC defaults reference --sl-color-gray-N with Starlight's convention
+   (gray-6 = dark bg), but our palette inverts this. Override all EC vars.
+   ---------------------------------------------------------------- */
+:root,
+:root[data-theme="dark"],
+:root:not([data-theme='dark']) .expressive-code[data-theme='dark'] {
+  /* Code area */
+  --ec-codeBg: #080C12;
+  --ec-codeFg: #D6DEEB;
+  --ec-codeSelBg: #1B3A4B;
+  --ec-codeFontFml: var(--sl-font-mono);
+
+  /* Borders */
+  --ec-brdCol: var(--attest-border-subtle);
+  --ec-brdRad: 0.5rem;
+
+  /* Gutter (line numbers) */
+  --ec-gtrFg: var(--sl-color-gray-4);
+  --ec-gtrBrdCol: rgba(75, 92, 111, 0.2);
+  --ec-gtrHlFg: var(--sl-color-gray-5);
+
+  /* UI (tabs, headers) */
+  --ec-uiFontFml: var(--sl-font);
+  --ec-uiSelBg: rgba(45, 212, 191, 0.15);
+  --ec-uiSelFg: var(--sl-color-white);
+  --ec-focusBrd: var(--sl-color-accent);
+
+  /* Scrollbar */
+  --ec-sbThumbCol: rgba(255, 255, 255, 0.08);
+  --ec-sbThumbHoverCol: rgba(255, 255, 255, 0.18);
+
+  /* Frame: editor tab style */
+  --ec-frm-edBg: #080C12;
+  --ec-frm-edActTabBg: #0C1017;
+  --ec-frm-edActTabFg: var(--sl-color-gray-6);
+  --ec-frm-edActTabBrdCol: transparent;
+  --ec-frm-edActTabIndTopCol: var(--sl-color-accent);
+  --ec-frm-edActTabIndBtmCol: transparent;
+  --ec-frm-edTabBarBg: #0C1017;
+  --ec-frm-edTabBarBrdCol: var(--attest-border-subtle);
+  --ec-frm-edTabBarBrdBtmCol: var(--attest-border-subtle);
+
+  /* Frame: terminal style */
+  --ec-frm-trmBg: #080C12;
+  --ec-frm-trmTtbBg: #0C1017;
+  --ec-frm-trmTtbFg: var(--sl-color-gray-5);
+  --ec-frm-trmTtbBrdBtmCol: var(--attest-border-subtle);
+  --ec-frm-trmTtbDotsFg: var(--sl-color-gray-4);
+
+  /* Inline buttons (copy) */
+  --ec-frm-inlBtnFg: var(--sl-color-gray-5);
+  --ec-frm-inlBtnBg: var(--sl-color-gray-5);
+  --ec-frm-inlBtnBrd: var(--sl-color-gray-4);
+
+  /* Text markers */
+  --ec-tm-markBg: rgba(255, 255, 255, 0.06);
+  --ec-tm-markBrdCol: rgba(255, 255, 255, 0.15);
+  --ec-tm-insBg: rgba(34, 197, 94, 0.15);
+  --ec-tm-insBrdCol: rgba(34, 197, 94, 0.4);
+  --ec-tm-insDiffIndCol: rgba(34, 197, 94, 0.7);
+  --ec-tm-delBg: rgba(239, 68, 68, 0.15);
+  --ec-tm-delBrdCol: rgba(239, 68, 68, 0.4);
+  --ec-tm-delDiffIndCol: rgba(239, 68, 68, 0.7);
+
+  /* Shadow */
+  --ec-frm-shdCol: transparent;
+  --ec-frm-frameBoxShdCssVal: none;
+}
+
+/* ----------------------------------------------------------------
+   STARLIGHT CONTENT AREA
+   Override markdown content headings and links.
+   ---------------------------------------------------------------- */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  color: var(--sl-color-gray-7);
+}
+
+.sl-markdown-content a {
+  color: var(--sl-color-accent);
+}
+
+.sl-markdown-content a:hover {
+  color: var(--sl-color-accent-high);
+}
+
+/* Inline code in content */
+.sl-markdown-content :not(pre) > code {
+  background: var(--sl-color-gray-2);
+  border: 1px solid var(--attest-border-subtle);
+  color: var(--sl-color-accent-high);
+  border-radius: 0.25rem;
+  padding: 0.125em 0.375em;
+}
+
+/* ----------------------------------------------------------------
+   RESPONSIVE
+   ---------------------------------------------------------------- */
 @media (max-width: 640px) {
   .hero-section h1 {
     font-size: 1.75rem;
@@ -311,6 +634,10 @@
 
   .hero-section .subtitle {
     font-size: 1rem;
+  }
+
+  .hero-section {
+    padding: 3rem 1.25rem;
   }
 
   .feature-grid {
