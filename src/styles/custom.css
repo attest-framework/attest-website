@@ -1,18 +1,22 @@
 /* Attest Framework — Brand Overrides for Starlight */
 
+/* Light theme: gray-1 = lightest, gray-7 = darkest */
 :root {
-  --sl-color-accent-low: #042f2e;
+  /* Teal accent for branding — links, buttons, active states */
+  --sl-color-accent-low: #f0fdfa;
   --sl-color-accent: #0f766e;
-  --sl-color-accent-high: #99f6e4;
+  --sl-color-accent-high: #134e4a;
 
+  /* Neutral Slate gray scale for text, borders, backgrounds */
   --sl-color-white: #ffffff;
-  --sl-color-gray-1: #f0fdfa;
-  --sl-color-gray-2: #ccfbf1;
-  --sl-color-gray-3: #5eead4;
-  --sl-color-gray-4: #2dd4bf;
-  --sl-color-gray-5: #0d9488;
-  --sl-color-gray-6: #115e59;
-  --sl-color-gray-7: #134e4a;
+  --sl-color-gray-1: #f1f5f9;
+  --sl-color-gray-2: #e2e8f0;
+  --sl-color-gray-3: #94a3b8;
+  --sl-color-gray-4: #64748b;
+  --sl-color-gray-5: #475569;
+  --sl-color-gray-6: #334155;
+  --sl-color-gray-7: #1e293b;
+  --sl-color-black: #0f172a;
 
   /* Assertion tier colors */
   --attest-tier-free: #16a34a;
@@ -23,25 +27,28 @@
   --attest-section-gap: 3rem;
 }
 
+/* Dark theme: gray-1 = darkest, gray-7 = lightest (inverted) */
 :root[data-theme="dark"] {
   --sl-color-accent-low: #042f2e;
   --sl-color-accent: #14b8a6;
   --sl-color-accent-high: #ccfbf1;
 
-  --sl-color-gray-1: #134e4a;
-  --sl-color-gray-2: #115e59;
-  --sl-color-gray-3: #0d9488;
-  --sl-color-gray-4: #2dd4bf;
-  --sl-color-gray-5: #5eead4;
-  --sl-color-gray-6: #99f6e4;
-  --sl-color-gray-7: #f0fdfa;
+  --sl-color-white: #0f172a;
+  --sl-color-gray-1: #1e293b;
+  --sl-color-gray-2: #334155;
+  --sl-color-gray-3: #475569;
+  --sl-color-gray-4: #64748b;
+  --sl-color-gray-5: #94a3b8;
+  --sl-color-gray-6: #cbd5e1;
+  --sl-color-gray-7: #e2e8f0;
+  --sl-color-black: #f1f5f9;
 }
 
 /* Hero section */
 .hero-section {
   text-align: center;
   padding: 4rem 1.5rem;
-  background: linear-gradient(135deg, var(--sl-color-accent-low) 0%, #0a2e2b 100%);
+  background: linear-gradient(135deg, #042f2e 0%, #0a2e2b 100%);
   border-radius: 1rem;
   margin-bottom: var(--attest-section-gap);
 }
@@ -49,14 +56,14 @@
 .hero-section h1 {
   font-size: 2.5rem;
   font-weight: 800;
-  color: var(--sl-color-white);
+  color: #f1f5f9;
   margin-bottom: 1rem;
   line-height: 1.2;
 }
 
 .hero-section .subtitle {
   font-size: 1.25rem;
-  color: var(--sl-color-gray-5);
+  color: #94a3b8;
   max-width: 640px;
   margin: 0 auto 2rem;
 }
@@ -84,14 +91,14 @@
 }
 
 .hero-buttons .primary {
-  background: var(--sl-color-accent);
-  color: var(--sl-color-white);
+  background: #0f766e;
+  color: #f1f5f9;
 }
 
 .hero-buttons .secondary {
   background: transparent;
-  border: 2px solid var(--sl-color-gray-5);
-  color: var(--sl-color-gray-5);
+  border: 2px solid #94a3b8;
+  color: #cbd5e1;
 }
 
 /* Feature grid */
@@ -104,7 +111,7 @@
 
 .feature-card {
   padding: 1.5rem;
-  border: 1px solid var(--sl-color-gray-5);
+  border: 1px solid var(--sl-color-gray-3);
   border-radius: 0.75rem;
   background: var(--sl-color-bg);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -128,7 +135,7 @@
 
 .feature-card p {
   font-size: 0.9rem;
-  color: var(--sl-color-gray-3);
+  color: var(--sl-color-gray-5);
   margin: 0;
 }
 
@@ -211,7 +218,7 @@
 
 .pipeline-layer .layer-desc {
   font-size: 0.8rem;
-  color: var(--sl-color-gray-3);
+  color: var(--sl-color-gray-5);
 }
 
 .pipeline-layer .layer-cost {
@@ -232,7 +239,7 @@
 .comparison-table td {
   padding: 0.75rem 1rem;
   text-align: center;
-  border-bottom: 1px solid var(--sl-color-gray-5);
+  border-bottom: 1px solid var(--sl-color-gray-3);
 }
 
 .comparison-table th {
@@ -257,7 +264,7 @@
 }
 
 .comparison-table .cross {
-  color: var(--sl-color-gray-4);
+  color: var(--sl-color-gray-3);
 }
 
 /* Code tabs */
@@ -268,7 +275,7 @@
 .code-tabs .tab-bar {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--sl-color-gray-5);
+  border-bottom: 2px solid var(--sl-color-gray-3);
 }
 
 .code-tabs .tab-button {
@@ -278,7 +285,7 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--sl-color-gray-3);
+  color: var(--sl-color-gray-4);
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   transition: color 0.15s ease, border-color 0.15s ease;
