@@ -128,19 +128,114 @@ header.header {
   border-bottom: 1px solid var(--attest-border-subtle);
 }
 
-/* Search input */
-site-search button {
-  background-color: var(--sl-color-gray-2);
-  border-color: var(--attest-border-medium);
-}
-
 /* ----------------------------------------------------------------
    STARLIGHT SIDEBAR
+   Starlight components use var(--sl-color-gray-2) for sidebar links,
+   which in our inverted palette maps to #18202B (invisible on dark bg).
+   Override to readable values.
    ---------------------------------------------------------------- */
 starlight-menu-button + nav a[aria-current="page"],
 .sidebar-content a[aria-current="page"] {
   background: var(--sl-color-accent-low);
   color: var(--sl-color-accent);
+}
+
+/* Sidebar links: override Starlight's gray-2 (dark in our palette) */
+nav ul a:where(:not([aria-current="page"])) {
+  color: var(--sl-color-gray-5);
+}
+nav ul a:where(:not([aria-current="page"])):hover,
+nav ul a:where(:not([aria-current="page"])):focus {
+  color: var(--sl-color-white);
+}
+
+/* ----------------------------------------------------------------
+   TABLE OF CONTENTS (right sidebar)
+   Starlight uses color: var(--sl-color-gray-3) → #1F2937 in our
+   inverted palette, invisible on dark background.
+   ---------------------------------------------------------------- */
+.right-sidebar-panel a {
+  color: var(--sl-color-gray-5);
+}
+.right-sidebar-panel a:hover {
+  color: var(--sl-color-white);
+}
+.right-sidebar-panel a[aria-current="true"] {
+  color: var(--sl-color-accent);
+}
+
+/* ----------------------------------------------------------------
+   SEARCH DIALOG
+   Starlight uses var(--sl-color-gray-6) for dialog bg, which is
+   #BCC8D6 (light) in our inverted palette. Override to dark theme.
+   ---------------------------------------------------------------- */
+site-search dialog {
+  background-color: var(--sl-color-gray-1);
+  border-color: var(--attest-border-medium);
+}
+
+/* Search button (header bar): fix invisible text */
+site-search button[data-open-modal] {
+  color: var(--sl-color-gray-5);
+}
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    background-color: var(--sl-color-gray-2);
+    border-color: var(--attest-border-medium);
+    color: var(--sl-color-gray-5);
+  }
+  site-search button[data-open-modal]:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+}
+
+/* Keyboard shortcut badge in search button */
+site-search button > kbd {
+  background-color: var(--sl-color-gray-3);
+}
+
+/* Pagefind UI overrides for dark theme */
+#starlight__search {
+  --pagefind-ui-text: var(--sl-color-gray-6);
+  --pagefind-ui-background: var(--sl-color-gray-2);
+  --pagefind-ui-border: var(--attest-border-medium);
+  --pagefind-ui-tag: var(--sl-color-gray-3);
+}
+
+#starlight__search .pagefind-ui__form::before {
+  --pagefind-ui-text: var(--sl-color-gray-5);
+}
+
+#starlight__search .pagefind-ui__search-input {
+  color: var(--sl-color-white);
+}
+
+#starlight__search input:focus {
+  --pagefind-ui-border: var(--sl-color-accent);
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+#starlight__search .pagefind-ui__result-nested {
+  background-color: var(--sl-color-gray-2);
+}
+
+#starlight__search .pagefind-ui__result-link {
+  --pagefind-ui-text: var(--sl-color-white);
+}
+
+#starlight__search mark {
+  color: var(--sl-color-accent-high);
+  background-color: transparent;
+  font-weight: 600;
+}
+
+#starlight__search .pagefind-ui__result-excerpt {
+  color: var(--sl-color-gray-5);
+}
+
+#starlight__search .pagefind-ui__result-tags {
+  background-color: var(--sl-color-gray-2);
 }
 
 /* ----------------------------------------------------------------
