@@ -27,13 +27,13 @@
   --attest-section-gap: 3rem;
 }
 
-/* Dark theme: gray-1 = darkest, gray-7 = lightest (inverted) */
+/* Dark theme: only override accent + invert gray scale */
+/* white/black are absolute (lightest/darkest) — Starlight handles the swap */
 :root[data-theme="dark"] {
   --sl-color-accent-low: #042f2e;
   --sl-color-accent: #14b8a6;
   --sl-color-accent-high: #ccfbf1;
 
-  --sl-color-white: #0f172a;
   --sl-color-gray-1: #1e293b;
   --sl-color-gray-2: #334155;
   --sl-color-gray-3: #475569;
@@ -41,7 +41,6 @@
   --sl-color-gray-5: #94a3b8;
   --sl-color-gray-6: #cbd5e1;
   --sl-color-gray-7: #e2e8f0;
-  --sl-color-black: #f1f5f9;
 }
 
 /* Hero section */
