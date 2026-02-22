@@ -46,10 +46,10 @@ async def test_weather_agent():
 
     expect(result).to_have_steps(["llm_call", "tool_call"])  # Layer 3: Free
     expect(result).output_to_contain("Tokyo")                 # Layer 4: Free
-    expect(result).output_to_be_similar_to(                   # Layer 5: ~$0.001
+    expect(result).output_to_be_similar_to(                   # Layer 5: ≪$0.001
         "Current weather conditions in Tokyo"
     )
-    expect(result).output_to_satisfy(                         # Layer 6: ~$0.01
+    expect(result).output_to_satisfy(                         # Layer 6: ~$0.001
         "Provides accurate, helpful weather information"
     )
 ```
@@ -68,10 +68,10 @@ test('weather agent returns weather data', async () => {
 
   attestExpect(result).toHaveSteps(['llm_call', 'tool_call']);  // Layer 3: Free
   attestExpect(result).outputToContain('Tokyo');                 // Layer 4: Free
-  attestExpect(result).outputToBeSimilarTo(                      // Layer 5: ~$0.001
+  attestExpect(result).outputToBeSimilarTo(                      // Layer 5: ≪$0.001
     'Current weather conditions in Tokyo'
   );
-  attestExpect(result).outputToSatisfy(                          // Layer 6: ~$0.01
+  attestExpect(result).outputToSatisfy(                          // Layer 6: ~$0.001
     'Provides accurate, helpful weather information'
   );
 });
