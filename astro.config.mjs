@@ -17,10 +17,23 @@ export default defineConfig({
         },
       ],
       logo: {
-        src: "./src/assets/logo.svg",
+        src: "./src/assets/attest-logo.png",
         replacesTitle: false,
       },
-      customCss: ["./src/styles/custom.css"],
+      favicon: "/favicon.png",
+      components: {
+        ThemeProvider: "./src/overrides/ThemeProvider.astro",
+        ThemeSelect: "./src/overrides/ThemeSelect.astro",
+      },
+      customCss: [
+        "@fontsource/inter/400.css",
+        "@fontsource/inter/500.css",
+        "@fontsource/inter/600.css",
+        "@fontsource/inter/700.css",
+        "@fontsource/jetbrains-mono/400.css",
+        "@fontsource/jetbrains-mono/500.css",
+        "./src/styles/custom.css",
+      ],
       editLink: {
         baseUrl: "https://github.com/attest-framework/attest-website/edit/main/",
       },
