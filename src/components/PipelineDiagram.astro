@@ -13,13 +13,16 @@ interface Layer {
   cost: string;
 }
 
+// Costs sourced from attest-bench/approach-comparison (50 scenarios × 3 trials, gpt-4.1 judge):
+// - LLM Judge: $0.557 / 600 calls = ~$0.0009/call
+// - Embedding: text-embedding-3-small, ~$0.00002/1K tokens
 const layers: Layer[] = [
   { number: 1, name: 'Schema Validation', description: 'JSON Schema conformance, required fields, type checking', tier: 'free', cost: 'Free' },
   { number: 2, name: 'Constraint Checking', description: 'Value ranges, string patterns, numeric bounds', tier: 'free', cost: 'Free' },
   { number: 3, name: 'Trace Validation', description: 'Step ordering, tool call verification, timing checks', tier: 'free', cost: 'Free' },
   { number: 4, name: 'Content Matching', description: 'Regex patterns, keyword presence, substring matching', tier: 'free', cost: 'Free' },
-  { number: 5, name: 'Embedding Similarity', description: 'Semantic similarity via vector embeddings', tier: 'cheap', cost: '~$0.001' },
-  { number: 6, name: 'LLM Judge', description: 'Natural language evaluation by a judge model', tier: 'expensive', cost: '~$0.01' },
+  { number: 5, name: 'Embedding Similarity', description: 'Semantic similarity via vector embeddings', tier: 'cheap', cost: '≪$0.001' },
+  { number: 6, name: 'LLM Judge', description: 'Natural language evaluation by a judge model', tier: 'expensive', cost: '~$0.001' },
   { number: 7, name: 'Trace Tree', description: 'Multi-agent delegation chains, cross-agent assertions', tier: 'free', cost: 'Free' },
   { number: 8, name: 'Plugin', description: 'Custom evaluation logic via the plugin protocol', tier: 'cheap', cost: 'Varies' },
 ];

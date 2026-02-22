@@ -38,7 +38,7 @@ result = await my_agent("What's 2+2?")
 
 expect(result).output_to_contain("4")                    # Layer 4: Free, instant
 expect(result).to_have_steps(["llm_call"])               # Layer 3: Free, instant
-expect(result).output_to_satisfy("mathematically correct") # Layer 6: ~$0.01
+expect(result).output_to_satisfy("mathematically correct") # Layer 6: ~$0.001
 ```
 
 ### 3. Run with pytest (Python) or vitest (TypeScript)

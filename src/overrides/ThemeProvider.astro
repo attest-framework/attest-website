@@ -1,0 +1,13 @@
+---
+/**
+ * Forces dark theme permanently. Replaces Starlight's default ThemeProvider
+ * which includes a light/dark toggle mechanism.
+ *
+ * Inline script runs before first paint to prevent flash of light theme.
+ */
+---
+
+<script is:inline>
+  document.documentElement.dataset.theme = 'dark';
+  window.localStorage.setItem('starlight-theme', 'dark');
+</script>
