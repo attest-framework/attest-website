@@ -22,7 +22,7 @@ pnpm preview      # Preview production build
 
 ## Structure
 
-```
+```text
 src/
 ├── assets/              # Logo, images
 ├── components/          # PipelineDiagram, ComparisonTable, CodeTabs
