@@ -1,0 +1,265 @@
+---
+title: "Drift Detection"
+description: "Monitor agent behavior changes over time using continuous evaluation and alerting."
+---
+
+Drift detection uses the [continuous evaluation](/attest-website/guides/continuous-eval/) pipeline to monitor how agent behavior changes over time. When assertions that previously passed start failing, the system dispatches alerts via webhooks and Slack.
+
+## What is Drift?
+
+Agent drift occurs when an AI agent's behavior changes without code changes. Common causes:
+
+- **Model updates** — Provider deploys a new model version
+- **Data drift** — Input distribution shifts over time
+- **Tool changes** — External APIs change behavior or rate limits
+- **Prompt sensitivity** — Subtle changes in system prompts cascade
+- **Context degradation** — RAG retrieval quality degrades as data grows stale
+
+## Configuration
+
+### Global Config
+
+```python
+from attest import config
+
+config(
+    sample_rate=0.05,
+    alert_webhook="https://hooks.example.com/attest-drift",
+    alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
+)
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ATTEST_SAMPLE_RATE` | Fraction of traces to evaluate for drift |
+| `ATTEST_ALERT_WEBHOOK` | Webhook URL for drift alerts |
+| `ATTEST_ALERT_SLACK_URL` | Slack webhook URL for drift alerts |
+
+## Setting Up Drift Assertions
+
+Define assertions that capture your agent's expected behavior baseline:
+
+```python
+from attest import Assertion
+
+drift_assertions = [
+    # Output quality — should always produce helpful responses
+    Assertion(
+        assertion_id="drift_no_errors",
+        type="content",
+        spec={
+            "target": "output.message",
+            "check": "forbidden",
+            "values": ["I cannot", "I'm unable", "error occurred", "stacktrace"],
+        },
+    ),
+
+    # Latency — agent should respond within SLO
+    Assertion(
+        assertion_id="drift_latency",
+        type="constraint",
+        spec={"field": "metadata.latency_ms", "operator": "lte", "value": 5000, "soft": True},
+    ),
+
+    # Cost — per-request cost should stay within budget
+    Assertion(
+        assertion_id="drift_cost",
+        type="constraint",
+        spec={"field": "metadata.cost_usd", "operator": "lte", "value": 0.05},
+    ),
+
+    # Tool usage — agent should call the expected tools
+    Assertion(
+        assertion_id="drift_tools",
+        type="trace",
+        spec={"check": "required_tools", "tools": ["search", "format_response"], "soft": True},
+    ),
+
+    # Token budget — prevent token explosion from loops
+    Assertion(
+        assertion_id="drift_tokens",
+        type="constraint",
+        spec={"field": "metadata.total_tokens", "operator": "lte", "value": 4000},
+    ),
+
+    # No tool loops
+    Assertion(
+        assertion_id="drift_no_loops",
+        type="trace",
+        spec={"check": "loop_detection", "tool": "search", "max_repetitions": 3},
+    ),
+]
+```
+
+:::tip
+Use `"soft": true` for assertions that track trends rather than hard failures. Soft failures are counted separately in the pytest cost report and do not fail tests.
+:::
+
+## Alert Payload
+
+When an assertion fails, the `AlertDispatcher` sends a payload to configured endpoints:
+
+```json
+{
+  "drift_type": "constraint_violation",
+  "score": 0.0,
+  "trace_id": "trc_abc123def456",
+  "assertion_id": "drift_latency",
+  "explanation": "metadata.latency_ms (8200) > 5000"
+}
+```
+
+### Slack Format
+
+```
+[attest] drift alert — type=constraint_violation score=0.0 trace_id=trc_abc123def456
+```
+
+## Drift Detection Patterns
+
+### Pattern 1: Output Quality Regression
+
+Detect when model updates cause the agent to produce lower-quality outputs:
+
+```python
+# Content assertions catch obvious quality drops
+Assertion(
+    assertion_id="quality_keywords",
+    type="content",
+    spec={
+        "target": "output.message",
+        "check": "keyword_any",
+        "values": ["helpful", "here's", "found"],
+        "soft": True,
+    },
+)
+```
+
+### Pattern 2: Cost Explosion
+
+Detect when changes cause the agent to use more tokens:
+
+```python
+Assertion(
+    assertion_id="cost_budget",
+    type="constraint",
+    spec={"field": "metadata.cost_usd", "operator": "lte", "value": 0.02},
+)
+
+Assertion(
+    assertion_id="token_budget",
+    type="constraint",
+    spec={
+        "field": "metadata.total_tokens",
+        "operator": "between",
+        "min": 100,
+        "max": 3000,
+    },
+)
+```
+
+### Pattern 3: Tool Behavior Changes
+
+Detect when the agent stops using expected tools or starts looping:
+
+```python
+# Required tools
+Assertion(
+    assertion_id="tool_presence",
+    type="trace",
+    spec={"check": "required_tools", "tools": ["search", "summarize"]},
+)
+
+# No infinite loops
+Assertion(
+    assertion_id="no_loops",
+    type="trace",
+    spec={"check": "loop_detection", "tool": "search", "max_repetitions": 2},
+)
+
+# Forbidden tools (deprecated or dangerous)
+Assertion(
+    assertion_id="no_deprecated",
+    type="trace",
+    spec={"check": "forbidden_tools", "tools": ["old_search_v1", "unsafe_eval"]},
+)
+```
+
+### Pattern 4: Multi-Agent Delegation Drift
+
+For multi-agent systems, detect when delegation patterns change:
+
+```python
+# Expected delegation structure
+Assertion(
+    assertion_id="delegation_structure",
+    type="trace_tree",
+    spec={
+        "check": "follows_transitions",
+        "transitions": [["orchestrator", "researcher"], ["orchestrator", "writer"]],
+    },
+)
+
+# Depth limit — prevent runaway recursion
+Assertion(
+    assertion_id="delegation_depth",
+    type="trace_tree",
+    spec={"check": "delegation_depth", "max_depth": 3},
+)
+```
+
+## Production Deployment
+
+### FastAPI Example
+
+```python
+from attest import Assertion, ContinuousEvalRunner
+from attest.client import AttestClient
+from attest.engine_manager import EngineManager
+
+async def setup_drift_monitor():
+    engine = EngineManager()
+    await engine.start()
+    client = AttestClient(engine)
+
+    runner = ContinuousEvalRunner(
+        client=client,
+        assertions=drift_assertions,  # from examples above
+        sample_rate=0.05,
+        alert_webhook="https://hooks.example.com/attest",
+        alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
+    )
+    await runner.start()
+    return runner, engine
+
+# In request handler
+async def handle(query: str, runner: ContinuousEvalRunner):
+    result = await my_agent(query)
+    await runner.submit(result.trace)
+    return result
+```
+
+### Sample Rate Guidelines
+
+| Environment | Rate | Rationale |
+|-------------|------|-----------|
+| Development | `1.0` | Evaluate every trace |
+| Staging | `0.5` | Half of traces, catch regressions |
+| Production (layers 1-4 only) | `0.1`-`0.5` | Free assertions, higher coverage |
+| Production (with layers 5-6) | `0.01`-`0.05` | Paid assertions, minimize cost |
+
+## Relationship to Testing
+
+Drift detection complements test-time assertions:
+
+| Concern | Test-time (`pytest`) | Production (drift) |
+|---------|---------------------|-------------------|
+| When | CI/CD pipeline | Live traffic |
+| Coverage | Synthetic test cases | Real user inputs |
+| Cost | Per test run | Per sampled request |
+| Assertions | All layers | Layers 1-4 preferred |
+| Failure mode | Test failure | Alert notification |
+
+Use tests for comprehensive assertion coverage with synthetic inputs. Use drift detection for lightweight monitoring with real production traffic.
