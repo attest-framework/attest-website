@@ -1,0 +1,112 @@
+---
+title: "TypeScript Setup"
+description: "Set up Attest for TypeScript projects. Install the SDK, create an Agent, and run tests with Vitest."
+---
+
+## Installation
+
+Install the core SDK and Vitest integration:
+
+```bash
+npm install @attest-ai/core @attest-ai/vitest
+```
+
+Or with pnpm:
+
+```bash
+pnpm add @attest-ai/core @attest-ai/vitest
+```
+
+## Create an Agent
+
+Use the `Agent` class to wrap your agent logic:
+
+```typescript
+import { Agent, TraceBuilder } from "@attest-ai/core";
+
+const supportAgent = new Agent("support-agent", (builder: TraceBuilder, args) => {
+  builder.addToolCall("lookup_user", { args: { query: args.user_message }, result: { user_id: "U-123" } });
+  builder.addToolCall("reset_password", { args: { user_id: "U-123" }, result: { success: true } });
+  builder.setMetadata({ total_tokens: 150, cost_usd: 0.005, latency_ms: 1200 });
+  return { message: "Your temporary password is abc123." };
+});
+```
+
+## Write Your First Test
+
+Create a test file `test_agent.ts`:
+
+```typescript
+import { attestExpect } from "@attest-ai/core";
+
+const result = supportAgent.run({ user_message: "Reset my password" });
+
+attestExpect(result)
+  .outputContains("temporary password")
+  .costUnder(0.05)
+  .toolsCalledInOrder(["lookup_user", "reset_password"]);
+```
+
+## Vitest Integration
+
+Use `@attest-ai/vitest` for test runner integration:
+
+```typescript
+import { describe, it } from "vitest";
+import { attestExpect } from "@attest-ai/vitest";
+
+describe("support agent", () => {
+  it("handles password reset", async () => {
+    const result = supportAgent.run({ user_message: "Reset my password" });
+
+    attestExpect(result)
+      .outputContains("temporary password")
+      .costUnder(0.05)
+      .toolsCalledInOrder(["lookup_user", "reset_password"])
+      .passesJudge("Was the password reset handled correctly?");
+  });
+});
+```
+
+Run with:
+
+```bash
+npx vitest
+```
+
+## Using the TraceBuilder
+
+Build traces manually for custom agent architectures:
+
+```typescript
+import { TraceBuilder, AgentResult, attestExpect } from "@attest-ai/core";
+
+const builder = new TraceBuilder("my-agent");
+builder.setInput({ query: "What is 2 + 2?" });
+builder.addLlmCall("gpt-4.1", { args: { model: "gpt-4.1" }, result: { content: "4" } });
+builder.setOutput({ message: "The answer is 4." });
+builder.setMetadata({ total_tokens: 50, cost_usd: 0.001, latency_ms: 800 });
+
+const trace = builder.build();
+const result = new AgentResult(trace);
+
+attestExpect(result)
+  .outputContains("4")
+  .costUnder(0.05);
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for judge/embedding assertions |
+| `ATTEST_ENGINE_PATH` | Override engine binary location |
+| `ATTEST_SIMULATION` | Enable simulation mode (no real LLM calls) |
+| `ATTEST_JUDGE_PROVIDER` | LLM judge provider: `openai`, `anthropic`, `gemini`, `ollama` |
+| `ATTEST_JUDGE_MODEL` | Model for judge assertions (e.g., `gpt-4.1`) |
+
+## Next Steps
+
+- **[Quickstart](/attest-website/getting-started/quickstart/)** — Framework overview and assertion layers
+- **[Framework Adapters](/attest-website/guides/framework-adapters/)** — Adapter architecture and usage
+- **[Multi-Agent Guide](/attest-website/guides/multi-agent/)** — Testing multi-agent systems

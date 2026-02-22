@@ -1,0 +1,179 @@
+---
+title: "Python Setup"
+description: "Set up Attest for Python projects. Install the SDK, write your first test, and run it with pytest."
+---
+
+## Installation
+
+Install the `attest-ai` package:
+
+```bash
+uv add attest-ai
+```
+
+Or with pip:
+
+```bash
+pip install attest-ai
+```
+
+For framework-specific adapters, install extras:
+
+```bash
+uv add 'attest-ai[langchain]'     # LangChain support
+uv add 'attest-ai[llamaindex]'    # LlamaIndex support
+uv add 'attest-ai[google-adk]'    # Google ADK support
+uv add 'attest-ai[otel]'          # OpenTelemetry support
+```
+
+## Create an Agent
+
+Start with a simple agent that uses OpenAI:
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def my_agent(question: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.choices[0].message.content
+```
+
+## Write Your First Test
+
+Create a file `test_agent.py`:
+
+```python
+from attest import expect
+
+# Run the agent
+result = my_agent("What is 2 + 2?")
+
+# Assert the output
+(expect(result)
+  .output_contains("4")
+  .cost_under(0.05))
+```
+
+Chain multiple assertions on one result:
+
+```python
+(expect(result)
+  .output_contains("success")
+  .cost_under(0.05)
+  .latency_under(3000)
+  .passes_judge("Is the response helpful?"))
+```
+
+## Run Tests
+
+```bash
+python test_agent.py
+```
+
+If all assertions pass:
+
+```
+✓ All assertions passed
+```
+
+If an assertion fails:
+
+```
+✗ Assertion failed: output_contains("goodbye")
+  Expected output to contain: goodbye
+  Actual output: hello world
+```
+
+### With pytest
+
+Attest includes a pytest plugin. Use the `attest` fixture:
+
+```python
+import pytest
+from attest import expect
+
+def test_math_question(attest):
+    result = my_agent("What is 2 + 2?")
+
+    chain = (
+        expect(result)
+        .output_contains("4")
+        .cost_under(0.05)
+    )
+    attest.evaluate(chain)
+```
+
+Run with:
+
+```bash
+pytest test_agent.py -v
+```
+
+## Soft Failures
+
+Continue testing after failures to see all issues:
+
+```python
+from attest import expect, soft_fail
+
+with soft_fail():
+    (expect(result)
+      .output_contains("hello")  # May fail
+      .cost_under(0.01)           # May fail
+      .passes_judge("..."))       # Will still run
+```
+
+## Using Adapters
+
+Use built-in adapters for framework-specific trace capture:
+
+```python
+from attest import OpenAIAdapter, AgentResult, expect
+
+client = OpenAI()
+adapter = OpenAIAdapter(agent_id="assistant")
+
+response = client.chat.completions.create(
+    model="gpt-4.1",
+    messages=[{"role": "user", "content": "Explain recursion"}],
+)
+
+trace = adapter.trace_from_response(
+    response,
+    input_messages=[{"role": "user", "content": "Explain recursion"}],
+)
+
+result = AgentResult(trace=trace)
+expect(result).output_contains("recursion").cost_under(0.10)
+```
+
+## Simulation Mode
+
+Run tests without real API calls:
+
+```bash
+ATTEST_SIMULATION=1 pytest test_agent.py -v
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for judge/embedding assertions |
+| `ANTHROPIC_API_KEY` | Anthropic API key for judge assertions |
+| `ATTEST_ENGINE_PATH` | Override engine binary location |
+| `ATTEST_SIMULATION` | Enable simulation mode (no real LLM calls) |
+| `ATTEST_JUDGE_PROVIDER` | LLM judge provider: `openai`, `anthropic`, `gemini`, `ollama` |
+| `ATTEST_JUDGE_MODEL` | Model for judge assertions (e.g., `gpt-4.1`) |
+
+## Next Steps
+
+- **[Expect DSL Reference](/attest-website/reference/python/expect-dsl/)** — All assertion methods
+- **[Adapters Reference](/attest-website/reference/python/adapters/)** — Provider integrations
+- **[Simulation Guide](/attest-website/guides/simulation/)** — Simulation runtime details
+- **[Multi-Agent Guide](/attest-website/guides/multi-agent/)** — Testing multi-agent systems
