@@ -24,6 +24,7 @@ export default defineConfig({
       components: {
         ThemeProvider: "./src/overrides/ThemeProvider.astro",
         ThemeSelect: "./src/overrides/ThemeSelect.astro",
+        Header: "./src/overrides/Header.astro",
       },
       customCss: [
         "@fontsource/inter/400.css",
