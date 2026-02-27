@@ -1,0 +1,202 @@
+---
+title: "Migrating from v0.4.x to v0.5.0"
+description: "Breaking changes and upgrade steps for Attest v0.4.x to v0.5.0."
+---
+
+## Overview
+
+v0.5.0 is the largest release since launch — 48 changes across the Go engine, Python SDK, TypeScript SDK, documentation, and examples. All packages are now unified at version `0.5.0`.
+
+**Python SDK users:** No breaking changes to the `expect()` DSL or adapters. Update to `attest-ai>=0.5.0` for bug fixes and new `aggregate_latency_under()` / `all_tools_called()` methods.
+
+**TypeScript SDK users:** Two breaking changes — adapter API rename and CJS dual output. See below.
+
+**Engine users:** Version now `0.5.0` (was `0.4.0`). Binary auto-updates on first SDK run.
+
+## TypeScript Breaking Changes
+
+### 1. Adapter API: `capture()` → `traceFromResponse()`
+
+All TypeScript adapter methods that previously used `capture()` are renamed to `traceFromResponse()`.
+
+**Before (v0.4.x):**
+
+```typescript
+import { OpenAIAdapter } from '@attest-ai/core';
+
+const adapter = new OpenAIAdapter();
+const trace = adapter.capture(response);
+```
+
+**After (v0.5.0):**
+
+```typescript
+import { OpenAIAdapter } from '@attest-ai/core';
+
+const adapter = new OpenAIAdapter();
+const trace = adapter.traceFromResponse(response);
+```
+
+This applies to all adapters: `OpenAIAdapter`, `AnthropicAdapter`, `GeminiAdapter`, `OllamaAdapter`, and the new `LangChainAdapter`.
+
+### 2. CJS/ESM Dual Output
+
+`@attest-ai/core` and `@attest-ai/vitest` now ship both ESM and CommonJS bundles via tsup. The `package.json` `exports` map handles format resolution automatically.
+
+**Action required:** If you previously imported from internal subpaths (e.g., `@attest-ai/core/dist/...`), use the package exports map instead:
+
+```typescript
+// Before (may break)
+import { AttestClient } from '@attest-ai/core/dist/client';
+
+// After (stable)
+import { AttestClient } from '@attest-ai/core';
+```
+
+**No action required** if you already import from the package root.
+
+## New TypeScript Features
+
+### Discriminated Union Specs
+
+Assertion specs are now type-safe discriminated unions instead of `Record&lt;string, unknown>`:
+
+```typescript
+type AssertionSpec =
+  | SchemaSpec        // { type: "schema"; json_schema: object }
+  | ConstraintSpec    // { type: "constraint"; ... }
+  | ContentSpec       // { type: "content"; pattern: string; mode: "contains" | "regex" }
+  | EmbeddingSpec     // { type: "embedding"; ... }
+  | LlmJudgeSpec      // { type: "llm_judge"; ... }
+  | TraceSpec
+  | TraceTreeSpec
+  | PluginSpec;
+```
+
+### Branded Types
+
+`TraceId`, `AssertionId`, and `AgentId` are branded string types that prevent accidental mixing:
+
+```typescript
+import { traceId, assertionId, agentId } from '@attest-ai/core';
+
+const tid = traceId('trc_abc123');    // type: TraceId
+const aid = assertionId('ast_001');   // type: AssertionId
+
+// Type error: TraceId is not assignable to AssertionId
+const wrong: AssertionId = tid;       // ✗ compile error
+```
+
+### Plugin System
+
+Register custom assertion plugins:
+
+```typescript
+import { PluginRegistry, type AttestPlugin } from '@attest-ai/core';
+
+const myPlugin: AttestPlugin = {
+  id: 'custom-validator',
+  async evaluate(trace, config) {
+    return { passed: true, score: 1.0, message: 'Valid' };
+  }
+};
+
+PluginRegistry.register(myPlugin);
+```
+
+### Continuous Evaluation
+
+Run assertions continuously with sampling:
+
+```typescript
+import { ContinuousEvalRunner, Sampler, AlertDispatcher } from '@attest-ai/core';
+
+const runner = new ContinuousEvalRunner({
+  client,
+  sampler: new Sampler(0.1),
+  alertDispatcher: new AlertDispatcher({
+    webhookUrl: 'https://hooks.example.com/attest',
+  }),
+  maxQueueSize: 1000,
+});
+
+await runner.start();
+runner.submit(trace, assertions);
+await runner.stop();
+```
+
+### LangChain.js Adapter
+
+```typescript
+import { LangChainAdapter } from '@attest-ai/core';
+
+const adapter = new LangChainAdapter('my-agent');
+const result = await chain.invoke(input, { callbacks: [adapter] });
+const trace = adapter.buildTrace();
+```
+
+### TypeScript CLI
+
+```bash
+npx @attest-ai/core init        # Scaffold test project
+npx @attest-ai/core validate    # Validate test suite
+npx @attest-ai/core cache stats # Cache management
+npx @attest-ai/core --version
+```
+
+## New Python Features
+
+### TraceTree Analytics on ExpectChain
+
+Two new methods for trace-level performance assertions:
+
+```python
+expect(result) \
+    .aggregate_latency_under(500)          # All steps under 500ms
+    .all_tools_called(["search", "summarize"])  # Both tools were invoked
+```
+
+## Engine Performance
+
+No configuration changes required. Performance improvements are automatic:
+
+- **2.4x faster JSON processing** via `segmentio/encoding`
+- Schema compilation caching (SHA-256 keyed `sync.Map`)
+- Trace re-serialization eliminated (pre-computed `traceSize`)
+- Single-query stddev replacing 2 full table scans
+- Batch SQL eviction replacing Go-side sort-and-delete
+- Deferred LRU writes buffered in `sync.Map`, flushed every 5s
+
+## New Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------| --------|
+| `ATTEST_BUDGET_MAX_COST` | Max cost per evaluation batch | unlimited |
+| `ATTEST_JUDGE_CACHE_MAX_MB` | Judge cache size in MB | 100 |
+| `ATTEST_HISTORY_MAX_ROWS` | History store max rows before pruning | unlimited |
+| `ATTEST_HISTORY_MAX_AGE_DAYS` | History store max age before pruning | unlimited |
+| `ATTEST_ENGINE_TIMEOUT` | Engine read timeout in ms | 30000 |
+| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Max continuous eval queue size | 1000 |
+| `ATTEST_ENGINE_NO_DOWNLOAD` | Disable automatic engine download | unset |
+
+## Upgrade Steps
+
+### Python
+
+```bash
+uv add attest-ai@0.5.0
+```
+
+### TypeScript
+
+```bash
+pnpm add @attest-ai/core@0.5.0 @attest-ai/vitest@0.5.0
+```
+
+### Engine
+
+The engine binary auto-updates — both SDKs download the v0.5.0 engine on first run. To disable auto-download:
+
+```bash
+export ATTEST_ENGINE_NO_DOWNLOAD=1
+```
