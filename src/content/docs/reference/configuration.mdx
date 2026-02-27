@@ -1,0 +1,105 @@
+---
+title: "Configuration Reference"
+description: "Environment variables and runtime configuration for Attest engine, SDKs, and assertions."
+---
+
+All Attest configuration is driven by environment variables. No config files are required.
+
+## Engine Discovery
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ATTEST_ENGINE_PATH` | Absolute path to engine binary — skips all discovery | unset |
+| `ATTEST_ENGINE_NO_DOWNLOAD` | `1` / `true` / `yes` disables auto-download | unset (download enabled) |
+
+The SDK resolves the engine binary in this order:
+
+```
+ATTEST_ENGINE_PATH
+  → PATH lookup
+  → ~/.attest/bin/ (shared cache, version-checked)
+  → ../../bin/ (monorepo dev layout)
+  → ./bin/ (local)
+  → auto-download from GitHub Releases
+  → error
+```
+
+## Engine Runtime
+
+| Variable | Purpose | Default | Since |
+|----------|---------|---------|-------|
+| `ATTEST_ENGINE_TIMEOUT` | Max seconds to wait for an engine response before the SDK raises a timeout error | `30` | v0.5.1 |
+| `ATTEST_SIMULATION` | Enable simulation mode — deterministic mock results, no engine process, no API calls | unset | v0.4.0 |
+
+## Cost & Budget
+
+| Variable | Purpose | Default | Since |
+|----------|---------|---------|-------|
+| `ATTEST_BUDGET_MAX_COST` | Maximum USD spend per evaluation. Assertions that would exceed this limit are skipped with a budget error. Applies to judge (L6) and embedding (L5) assertions. | unset (unlimited) | v0.5.1 |
+| `ATTEST_RATE_LIMIT_OPENAI` | Rate limit for OpenAI API calls (requests per minute) | unset | v0.4.0 |
+
+## Judge Cache
+
+| Variable | Purpose | Default | Since |
+|----------|---------|---------|-------|
+| `ATTEST_JUDGE_CACHE_MAX_MB` | Maximum size in MB for the LLM judge response cache. Uses LRU eviction. Set to `0` to disable caching. | `100` | v0.5.1 |
+| `ATTEST_CACHE_DIR` | Directory for all Attest caches (judge, embeddings, engine binary) | `~/.attest/cache` | v0.4.0 |
+
+## History Store
+
+| Variable | Purpose | Default | Since |
+|----------|---------|---------|-------|
+| `ATTEST_HISTORY_MAX_ROWS` | Maximum number of rows in the SQLite history store. Oldest rows are deleted when the limit is exceeded. | `10000` | v0.5.1 |
+| `ATTEST_HISTORY_MAX_AGE_DAYS` | Auto-delete evaluation results older than this many days | `90` | v0.5.1 |
+
+## Continuous Evaluation
+
+| Variable | Purpose | Default | Since |
+|----------|---------|---------|-------|
+| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Maximum number of pending evaluations in the continuous eval queue. When full, new submissions block until space is available (backpressure). | `1000` | v0.5.1 |
+
+## LLM Providers
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for judge and embedding assertions | unset |
+| `ANTHROPIC_API_KEY` | Anthropic API key for judge assertions | unset |
+| `ATTEST_GEMINI_API_KEY` | Google Gemini API key | unset |
+| `ATTEST_OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` |
+
+## Judge Configuration
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ATTEST_JUDGE_PROVIDER` | LLM provider for judge assertions: `openai`, `anthropic`, `gemini`, `ollama` | `openai` |
+| `ATTEST_JUDGE_MODEL` | Model name for judge assertions | `gpt-4.1` |
+
+## Embedding Configuration
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ATTEST_EMBEDDING_PROVIDER` | Embedding provider: `auto`, `openai`, `onnx` | `auto` |
+
+`auto` selects ONNX (free, local) when available, falling back to OpenAI.
+
+## Example `.env`
+
+```bash
+# Engine
+ATTEST_ENGINE_TIMEOUT=30
+ATTEST_SIMULATION=0
+
+# Budget
+ATTEST_BUDGET_MAX_COST=1.00
+
+# Cache & history
+ATTEST_JUDGE_CACHE_MAX_MB=100
+ATTEST_HISTORY_MAX_ROWS=10000
+ATTEST_HISTORY_MAX_AGE_DAYS=90
+ATTEST_CONTINUOUS_QUEUE_SIZE=1000
+
+# Provider keys
+OPENAI_API_KEY=sk-...
+ATTEST_JUDGE_PROVIDER=openai
+ATTEST_JUDGE_MODEL=gpt-4.1
+```

@@ -336,6 +336,39 @@ task = crewai.create_task(...)
 engine = llamaindex.create_query_engine(...)
 ```
 
+## Layer 8: Plugin Assertions
+
+*Added in v0.5.1*
+
+Chain custom plugin evaluations alongside built-in assertions.
+
+### `plugin()`
+
+```python
+expect(result).plugin("my_plugin", {"threshold": 0.9})
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `plugin_name` | `str` | Registered plugin name |
+| `config` | `dict` | Plugin-specific configuration |
+
+### `aggregate_latency_under()`
+
+Assert total latency across all steps is below a threshold.
+
+```python
+expect(result).aggregate_latency_under(5000)
+```
+
+### `all_tools_called()`
+
+Assert that every tool in the list was called at least once.
+
+```python
+expect(result).all_tools_called(["search", "summarize", "format"])
+```
+
 ## Related
 
 - **[Python Adapters Reference](/attest-website/reference/python/adapters/)** — Provider integrations
