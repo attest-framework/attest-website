@@ -718,3 +718,24 @@ describe("assistant agent", () => {
 | 5 | Embedding | Paid | `outputSimilarTo` |
 | 6 | LLM Judge | Paid | `passesJudge` |
 | 7 | Trace Tree | Free | `agentCalled`, `delegationDepth`, `agentOutputContains`, `crossAgentDataFlow`, `followsTransitions`, `aggregateCostUnder`, `aggregateTokensUnder`, `agentOrderedBefore`, `agentsOverlap`, `agentWallTimeUnder`, `orderedAgents` |
+| 8 | Plugin | Varies | `plugin` |
+
+---
+
+## Layer 8: Plugin Assertions
+
+*Added in v0.5.1*
+
+### `plugin()`
+
+Chain a registered plugin evaluation alongside built-in assertions.
+
+```typescript
+plugin(pluginName: string, config?: Record<string, unknown>): this
+```
+
+```typescript
+attestExpect(result).plugin("toxicity-check", { threshold: 0.9 });
+```
+
+See [Writing a Plugin](/tutorials/writing-plugin/) for registration details.

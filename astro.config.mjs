@@ -105,6 +105,10 @@ export default defineConfig({
                 },
               ],
             },
+            {
+              label: "Configuration",
+              slug: "reference/configuration",
+            },
           ],
         },
         {
@@ -130,6 +134,10 @@ export default defineConfig({
             {
               label: "From Manual Testing",
               slug: "migration/from-manual-testing",
+            },
+            {
+              label: "v0.5 → v0.6",
+              slug: "migration/v05-to-v06",
             },
           ],
         },
