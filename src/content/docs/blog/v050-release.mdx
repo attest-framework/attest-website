@@ -1,0 +1,295 @@
+---
+title: "Attest v0.5.0 — The Alignment Release"
+description: "Engine performance overhaul, full TypeScript parity, production hardening, and unified versioning across all packages."
+---
+
+**Released: February 27, 2026**
+
+Attest v0.5.0 is the largest release since launch — 48 changes across the Go engine, Python SDK, TypeScript SDK, documentation, and examples. This release unifies all package versions to `0.5.0` and brings the TypeScript SDK to full feature parity with Python.
+
+## Highlights
+
+- **2.4x faster JSON processing** in the engine via `segmentio/encoding`
+- **TypeScript SDK reaches parity** — plugins, continuous eval, LangChain.js adapter, CLI, branded types
+- **Production-grade test coverage** — 90+ new tests across engine, Python SDK, TypeScript SDK, and vitest
+- **Unified versioning** — engine, Python SDK, and TypeScript SDK all at `0.5.0`
+
+---
+
+## Engine Performance
+
+The Go engine got a full performance pass. Evaluations that previously hit bottlenecks in JSON serialization and schema compilation are measurably faster.
+
+### Schema Compiler Cache (E11)
+
+Compiled JSON schemas are now cached in a `sync.Map` keyed by SHA-256 of the schema bytes. Previously, the engine created a fresh `jsonschema.Compiler` on every evaluation — identical schemas recompiled every time. With caching, the first evaluation compiles and all subsequent evaluations hit the cache.
+
+### Eliminate Trace Re-serialization (E12)
+
+`Validate()` previously marshaled the entire trace to JSON just to check its byte length. It now accepts a pre-computed `traceSize` parameter, computed once at the handler level. One fewer `json.Marshal` per evaluation.
+
+### SQL Optimizations (E13–E15)
+
+The history store and embedding cache got three targeted fixes:
+
+- **Single-query stddev** — replaced 2 full table scans with a single `SELECT COUNT(*), AVG(score), AVG(score*score)` using the statistical identity `σ = √(E[x²] - E[x]²)`
+- **Batch SQL eviction** — replaced Go-side sort-and-delete with a pure SQL `DELETE ... WHERE rowid IN (SELECT ... ORDER BY accessed_at LIMIT ?)`. No more loading every row into memory.
+- **Deferred LRU writes** — `accessed_at` updates are buffered in a `sync.Map` and flushed every 5 seconds or at 64 entries in a single transaction. Cuts SQLite write pressure on every cache hit.
+
+### segmentio/encoding (E16)
+
+All 13 hot-path files in the engine now use `github.com/segmentio/encoding/json` instead of `encoding/json`. It's a drop-in replacement with identical API. Benchmark suite in `attest-bench/` shows **2.4x faster** JSON encoding/decoding at 500 steps.
+
+---
+
+## TypeScript SDK Parity
+
+The TypeScript SDK now matches the Python SDK's feature set. Every major subsystem that existed only in Python is now available in TypeScript.
+
+### Plugin System (T7)
+
+```typescript
+import { PluginRegistry, type AttestPlugin } from '@attest-ai/core';
+
+const myPlugin: AttestPlugin = {
+  id: 'custom-validator',
+  async evaluate(trace, config) {
+    // Custom assertion logic
+    return { passed: true, score: 1.0, message: 'Valid' };
+  }
+};
+
+PluginRegistry.register(myPlugin);
+```
+
+The `ExpectChain` also gained a `.plugin()` method for Layer 8 assertions:
+
+```typescript
+attestExpect(result)
+  .plugin('custom-validator', { strict: true });
+```
+
+### Continuous Evaluation (T8)
+
+```typescript
+import { ContinuousEvalRunner, Sampler, AlertDispatcher } from '@attest-ai/core';
+
+const runner = new ContinuousEvalRunner({
+  client,
+  sampler: new Sampler(0.1),        // Sample 10% of traces
+  alertDispatcher: new AlertDispatcher({
+    webhookUrl: 'https://hooks.example.com/attest',
+    slackUrl: 'https://hooks.slack.com/...',
+  }),
+  maxQueueSize: 1000,
+});
+
+await runner.start();
+runner.submit(trace, assertions);   // Non-blocking
+await runner.stop();
+```
+
+### LangChain.js Adapter (T9)
+
+```typescript
+import { LangChainAdapter } from '@attest-ai/core';
+
+const adapter = new LangChainAdapter('my-agent');
+// Use as BaseCallbackHandler with any LangChain.js chain
+const result = await chain.invoke(input, { callbacks: [adapter] });
+const trace = adapter.buildTrace();
+```
+
+### Branded Types (T6)
+
+IDs are now branded types that prevent accidental misuse:
+
+```typescript
+import { traceId, assertionId, agentId } from '@attest-ai/core';
+
+const tid = traceId('trc_abc123');    // type: TraceId
+const aid = assertionId('ast_001');   // type: AssertionId
+const gid = agentId('agent-1');       // type: AgentId
+
+// Type error: TraceId is not assignable to AssertionId
+const wrong: AssertionId = tid;       // ✗ compile error
+```
+
+### Discriminated Union Specs (T5)
+
+Assertion specs are now type-safe discriminated unions instead of `Record&lt;string, unknown>`:
+
+```typescript
+// Before: spec was Record<string, unknown>
+// After: spec is a tagged union
+type AssertionSpec =
+  | SchemaSpec        // { type: "schema"; json_schema: object }
+  | ConstraintSpec    // { type: "constraint"; ... }
+  | ContentSpec       // { type: "content"; pattern: string; mode: "contains" | "regex" }
+  | EmbeddingSpec     // { type: "embedding"; ... }
+  | LlmJudgeSpec      // { type: "llm_judge"; ... }
+  | TraceSpec
+  | TraceTreeSpec
+  | PluginSpec;
+```
+
+### TypeScript CLI (T14)
+
+```bash
+# Scaffold a new test project
+npx @attest-ai/core init
+
+# Validate test suite
+npx @attest-ai/core validate
+
+# Cache management
+npx @attest-ai/core cache stats
+npx @attest-ai/core cache clear
+
+# Version
+npx @attest-ai/core --version
+```
+
+### CJS/ESM Dual Output (T12)
+
+The TypeScript SDK now ships both ESM and CJS builds via `tsup`, with `"sideEffects": false` for tree-shaking:
+
+```javascript
+// ESM
+import { AttestClient } from '@attest-ai/core';
+
+// CJS
+const { AttestClient } = require('@attest-ai/core');
+```
+
+### Adapter Type Safety (T10)
+
+All adapters now use typed `traceFromResponse()` instead of the loosely-typed `capture(...args: unknown[])`.
+
+### JSDoc Coverage (T11)
+
+All 45 `ExpectChain` methods have full JSDoc with `@param`, `@returns`, and `@example` tags. IDEs now show inline documentation for every assertion method.
+
+---
+
+## Python SDK Updates
+
+### TraceTree Analytics on ExpectChain (P9)
+
+Two new methods for trace-level performance assertions:
+
+```python
+expect(result) \
+    .aggregate_latency_under(500)  \          # All steps under 500ms
+    .all_tools_called(["search", "summarize"])  # Both tools were invoked
+```
+
+---
+
+## Correctness &amp; Safety (from v0.4.2 → v0.5.0)
+
+These fixes shipped incrementally and are included in v0.5.0:
+
+**Engine:** Plugin result wiring (`submit_plugin_result` was discarding data), drift alert mutex (race condition on stdout writes), `MaxStepPayload` enforcement (1MB limit was defined but never checked), regex pattern length limits, assertion ID length validation.
+
+**Python SDK:** OpenAI tool args parsed from JSON string to dict, Ollama tool call extraction fixed, Gemini token count extraction fixed, `asyncio.get_event_loop()` → `get_running_loop()` at 4 call sites, async agent decorator support.
+
+**TypeScript SDK:** `delegate()` parent trace ID wiring, full adapter test coverage (70 tests from zero).
+
+## Robustness &amp; Timeouts
+
+**Engine:** Budget tracker wiring (`ATTEST_BUDGET_MAX_COST`), semaphore-based concurrent requests, configurable judge cache size (`ATTEST_JUDGE_CACHE_MAX_MB`), history store retention policy with automatic pruning.
+
+**Python SDK:** Engine read timeout (30s default, configurable via `ATTEST_ENGINE_TIMEOUT`), bounded continuous eval queue (1000 default, `ATTEST_CONTINUOUS_QUEUE_SIZE`).
+
+**TypeScript SDK:** Request timeout via `Promise.race`, simulation mode (`ATTEST_SIMULATION=1`).
+
+---
+
+## Production Hardening
+
+### Engine Test Coverage
+
+- **Handler tests** — 14 test cases covering `validate_trace_tree`, `submit_plugin_result`, `query_drift`, `generate_user_message`
+- **Cache stress tests** — 6 concurrent stress tests with goroutine fan-out, verified with `-race`
+- **Pipeline integration tests** — 7 tests with mock LLM provider covering L5/L6 evaluation, budget enforcement, and hard-fail gating
+
+### SDK Test Coverage
+
+- **Python** — 30 new tests: EngineManager lifecycle (start/stop/restart/crash recovery), budget enforcement, CLI subprocess tests
+- **TypeScript** — 38 new tests: vitest plugin unit tests (replacing placeholder), CLI tests
+- **Total new tests this release:** 90+
+
+### TypeScript Examples
+
+Four Python examples ported to TypeScript in `attest-examples/`:
+
+- `quickstart-ts/` — layers 1–4 assertions
+- `openai-adapter-ts/` — chat completion + tool calling
+- `schema-assertions-ts/` — Layer 1 schema validation
+- `content-assertions-ts/` — Layer 4 content pattern matching
+
+---
+
+## New Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ATTEST_BUDGET_MAX_COST` | Max cost per evaluation batch | unlimited |
+| `ATTEST_JUDGE_CACHE_MAX_MB` | Judge cache size in MB | 100 |
+| `ATTEST_HISTORY_MAX_ROWS` | History store max rows before pruning | unlimited |
+| `ATTEST_HISTORY_MAX_AGE_DAYS` | History store max age before pruning | unlimited |
+| `ATTEST_ENGINE_TIMEOUT` | Engine read timeout in ms | 30000 |
+| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Max continuous eval queue size | 1000 |
+| `ATTEST_ENGINE_NO_DOWNLOAD` | Disable automatic engine download | unset |
+
+---
+
+## Breaking Changes
+
+### TypeScript adapter API
+
+`TraceAdapter.capture(...args: unknown[])` has been replaced with `TraceAdapter.traceFromResponse(response, options?)`. If you implemented a custom adapter, update the method signature.
+
+### CJS import paths
+
+If you were importing from specific subpaths (e.g., `@attest-ai/core/dist/...`), the dist structure changed with the tsup migration. Use the package exports map instead:
+
+```typescript
+// Before (may break)
+import { AttestClient } from '@attest-ai/core/dist/client';
+
+// After (stable)
+import { AttestClient } from '@attest-ai/core';
+```
+
+---
+
+## Upgrade
+
+```bash
+# Python
+uv add attest-ai@0.5.0
+# or: pip install --upgrade attest-ai
+
+# TypeScript
+pnpm add @attest-ai/core@0.5.0 @attest-ai/vitest@0.5.0
+# or: npm install @attest-ai/core@0.5.0 @attest-ai/vitest@0.5.0
+```
+
+The engine binary auto-updates — both SDKs will download the v0.5.0 engine on first run.
+
+---
+
+## Full Changelog
+
+| PR | Scope | Description |
+|----|-------|-------------|
+| #30 | Engine, Python, TypeScript | Correctness &amp; safety fixes (E1–E6, P1–P5, T1–T2) |
+| #31 | Engine, Python, TypeScript | Robustness &amp; timeouts (E7–E10, P6–P8, T3–T4) |
+| #32 | Engine | Performance: schema cache, SQL optimization, segmentio/encoding (E11–E16) |
+| #33 | Python, TypeScript | TypeScript parity: plugins, continuous eval, LangChain.js, branded types, CJS (T5–T12, P9) |
+| #34 | Engine | Handler, cache stress, pipeline integration tests (E17–E19) |
+| #35 | Python, TypeScript | SDK lifecycle/budget/CLI tests, vitest unit tests, TypeScript CLI (P10–P12, T13–T14) |
+| #36 | Docs | README update to v0.5.0 |
+| #37 | Release | Version bump to v0.5.0 |
