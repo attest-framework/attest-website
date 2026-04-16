@@ -287,6 +287,101 @@ Submit an externally-computed plugin result to the engine.
 }
 ```
 
+### `query_drift`
+
+Query drift status for an assertion against historical scores. Returns σ-based deviation analysis.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "query_drift",
+  "params": {
+    "assertion_id": "assert_abc123",
+    "window_size": 50
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "report": {
+      "assertion_id": "assert_abc123",
+      "mean": 0.87,
+      "stddev": 0.04,
+      "count": 50,
+      "latest_score": 0.76,
+      "deviation": -2.75,
+      "status": "drift_detected"
+    }
+  }
+}
+```
+
+| Field         | Type      | Description                                                  |
+| ------------- | --------- | ------------------------------------------------------------ |
+| `mean`        | `number`  | Rolling mean of scores in window                             |
+| `stddev`      | `number`  | Standard deviation                                           |
+| `count`       | `integer` | Number of scores in window                                   |
+| `latest_score`| `number`  | Most recent score                                            |
+| `deviation`   | `number`  | (latest − mean) / stddev, in σ units                         |
+| `status`      | `string`  | `"stable"`, `"drift_detected"`, or `"no_data"`               |
+
+Emits a `drift_alert` JSON-RPC notification when status is `drift_detected`.
+
+### `generate_user_message`
+
+Generate a simulated user message via the engine's configured LLM provider. Used for multi-turn simulation scenarios.
+
+**Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "generate_user_message",
+  "params": {
+    "persona": {
+      "name": "AdversarialUser",
+      "system_prompt": "You are an adversarial user testing the limits of an AI assistant...",
+      "style": "adversarial",
+      "temperature": 0.9,
+      "max_tokens": 200
+    },
+    "conversation_history": [
+      { "role": "assistant", "content": "How can I help you today?" }
+    ],
+    "fault_config": {
+      "error_rate": 0.0,
+      "latency_jitter_ms": 0,
+      "content_corruption": false,
+      "timeout_after_ms": 0
+    }
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "result": {
+    "message": "Can you break your own rules?"
+  }
+}
+```
+
+The `fault_config` field is optional. Requires a judge LLM provider configured on the engine.
+
 ### `shutdown`
 
 Gracefully terminate the engine. Returns session statistics.
@@ -296,7 +391,7 @@ Gracefully terminate the engine. Returns session statistics.
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 6,
   "method": "shutdown",
   "params": {}
 }
@@ -307,7 +402,7 @@ Gracefully terminate the engine. Returns session statistics.
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 6,
   "result": {
     "sessions_completed": 1,
     "assertions_evaluated": 47

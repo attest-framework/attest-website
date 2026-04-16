@@ -1,0 +1,107 @@
+---
+title: "v0.5 to v0.6 Migration"
+description: "Upgrade guide from Attest v0.5.0 to v0.6.0 — no breaking changes, new SDK methods for drift detection and simulation."
+---
+
+v0.6.0 is fully backwards-compatible with v0.5.0. No code changes are required to upgrade. This guide covers the new capabilities you may want to adopt.
+
+## Upgrade
+
+```bash
+# Python
+uv add attest-ai@0.6.0
+
+# TypeScript
+pnpm add @attest-ai/core@0.6.0 @attest-ai/vitest@0.6.0
+```
+
+The engine binary is at v0.6.0 with no behavior changes from v0.5.0. Both SDKs auto-download the matching version on first use.
+
+## What's New
+
+### Drift detection from the SDK
+
+The engine has supported σ-based drift detection since v0.4.0 via the `query_drift` RPC. v0.6.0 exposes this directly on the client.
+
+```python
+# Python
+report = await client.query_drift("assertion_id", window_size=50)
+print(report.status)  # "stable" | "drift_detected" | "no_data"
+```
+
+```typescript
+// TypeScript
+const report = await client.queryDrift("assertion_id", 50);
+console.log(report.status);
+```
+
+Both return a stubbed `DriftReport` in simulation mode.
+
+### Dynamic thresholds in the expect DSL
+
+Pass `threshold: "dynamic"` to `output_similar_to` / `outputSimilarTo` or `passes_judge` / `passesJudge`. The engine compares the score against the rolling mean ± N σ instead of a fixed value.
+
+```python
+expect(result).output_similar_to("reference", threshold="dynamic")
+```
+
+```typescript
+attestExpect(result).outputSimilarTo("reference", { threshold: "dynamic" });
+```
+
+Use this when you don't know the right absolute threshold yet, or when you want to catch regressions without picking an arbitrary number.
+
+### Simulated user messages
+
+Both SDKs now expose `generate_user_message` / `generateUserMessage` for multi-turn simulation scenarios.
+
+```typescript
+import { ADVERSARIAL_USER } from "@attest-ai/core/personas";
+
+const message = await client.generateUserMessage(
+  ADVERSARIAL_USER,
+  [{ role: "assistant", content: "How can I help?" }],
+);
+```
+
+### Vitest simulation mode
+
+If you use `@attest-ai/vitest`, `attestGlobalSetup()` now respects `ATTEST_SIMULATION=1` and skips engine startup entirely. Useful for CI pipelines where the engine binary isn't available.
+
+```bash
+ATTEST_SIMULATION=1 pnpm test
+```
+
+### Persona constants in TypeScript
+
+Previously only available in Python. Now exported from `@attest-ai/core`:
+
+```typescript
+import {
+  FRIENDLY_USER,
+  ADVERSARIAL_USER,
+  CONFUSED_USER,
+  COOPERATIVE_USER,
+} from "@attest-ai/core";
+```
+
+The 4 personas match the engine's built-in personas exactly.
+
+### TypeScript sampleRate config
+
+Matches the existing Python `config(sample_rate=...)`:
+
+```typescript
+import { config, getSampleRate } from "@attest-ai/core";
+
+config({ sampleRate: 0.1 });
+// or: process.env["ATTEST_SAMPLE_RATE"] = "0.1"
+```
+
+## Removed
+
+Nothing. No deprecations, no removals.
+
+## New Types
+
+Both SDKs now export: `DriftReport`, `ConversationMessage`, `SimulatePersona`, `SimulateFaultConfig`.

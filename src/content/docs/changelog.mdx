@@ -7,162 +7,128 @@ All notable changes to Attest are documented here. Versions follow [Semantic Ver
 
 ---
 
-## v0.7.0 — 2026-02-27
+## v0.6.0 — 2026-04-17
 
-**Production Hardening — test coverage, TS CLI, documentation**
+**Drift Detection & SDK Parity — Phase 4 completion**
+
+Closes all Phase 4 SDK gaps. The engine was feature-complete at v0.5.0 but the SDKs didn't expose all capabilities. This release brings Python and TypeScript SDKs to full parity with the engine.
 
 ### Features
 
-- **Go engine test coverage** — Integration tests for `evaluate_batch`, `submit_plugin_result`, and `shutdown` JSON-RPC methods. Coverage for concurrent request handling, schema compiler cache, and trace validation.
-- **TypeScript CLI** — `npx attest init` scaffolds a vitest-based test project with `@attest-ai/core` and `@attest-ai/vitest` pre-configured.
-- **TypeScript examples** — Four ported examples (quickstart, openai-adapter, schema-assertions, content-assertions) in the `attest-examples` repo.
-- **Documentation site** — Updated changelog, configuration reference, migration guide (v0.5 to v0.6), and SDK reference pages covering all v0.5–v0.7 features.
+- **`queryDrift()` / `query_drift()`** — SDK methods for the engine's `query_drift` RPC. Returns a `DriftReport` with mean, stddev, deviation, and status for any assertion over a configurable window.
+- **`generateUserMessage()` / `generate_user_message()`** — SDK methods for the engine's `generate_user_message` RPC. Generates simulated user messages via the engine's configured LLM provider, accepting a persona, conversation history, and optional fault injection config.
+- **Dynamic thresholds in expect DSL** — `outputSimilarTo()` and `passesJudge()` now accept `threshold: "dynamic"` to use σ-based drift detection against historical baselines. Python validates invalid strings and raises `ValueError`; TypeScript uses a `number | "dynamic"` union type.
+- **Vitest simulation mode** — `attestGlobalSetup()` respects `ATTEST_SIMULATION=1` and skips engine startup entirely. `useAttest()` and `evaluate()` return simulation-aware fixtures. Unblocks TS example tests that previously required an engine binary.
+- **TypeScript `sampleRate` config** — `config({ sampleRate })` and `getSampleRate()` with `ATTEST_SAMPLE_RATE` env var support. Mirrors the existing Python SDK config.
+- **4 built-in personas, aligned across platforms** — `FRIENDLY_USER`, `ADVERSARIAL_USER`, `CONFUSED_USER`, `COOPERATIVE_USER` defined identically in Go engine, Python SDK, and TypeScript SDK (`@attest-ai/core/personas`).
 
-### Testing
+### New Types
 
-- Engine: integration tests for all JSON-RPC methods, concurrent request handling, error paths
-- Python SDK: `ExpectChain.plugin()`, `aggregate_latency_under()`, `all_tools_called()` assertion tests
-- TypeScript SDK: plugin system, continuous eval runner, branded types, discriminated union specs
+Both SDKs now export: `DriftReport`, `ConversationMessage`, `SimulatePersona`, `SimulateFaultConfig`.
 
 ### Upgrade
 
+No breaking changes. All new APIs are purely additive.
+
 ```bash
 # Python
-uv add attest-ai@latest
+uv add attest-ai@0.6.0
 
 # TypeScript
-pnpm add @attest-ai/core@latest @attest-ai/vitest@latest
+pnpm add @attest-ai/core@0.6.0 @attest-ai/vitest@0.6.0
 ```
+
+### Engine
+
+The engine binary is also at v0.6.0 with no behavior changes since v0.5.0 — this release is purely SDK-side work. Both SDKs auto-download the matching engine version.
 
 ---
 
-## v0.6.1 — 2026-02-26
+## v0.5.0 — 2026-02-27
 
-**TypeScript Parity — full feature alignment with Python SDK**
+**The Alignment Release — version unification, engine performance, TypeScript parity, hardening**
 
-### Features
+Unifies engine, Python SDK, and TypeScript SDK at a single version for the first time. Ships 48 items across correctness, performance, TypeScript parity, and production hardening.
 
-- **Discriminated union specs** — `Step` type uses a `kind` discriminant (`llm_call | tool_call | retrieval | agent_call`) for exhaustive `switch` handling without type guards.
+### Engine Fixes & Hardening
+
+- **`submit_plugin_result`** — Implement the previously-stubbed JSON-RPC method. Plugin evaluations now round-trip correctly.
+- **Trace ID & step type validation** — Engine rejects malformed traces instead of silently accepting them.
+- **Assertion ID uniqueness** — Duplicate IDs within a batch return an error.
+- **Spec-compliant error codes** — All errors use JSON-RPC error codes (`-32600` to `-32603`).
+- **Shutdown draining** — `shutdown` waits up to 5s for in-flight evaluations to complete.
+- **Budget tracking** — `ATTEST_BUDGET_MAX_COST` caps total spend per evaluation.
+- **Concurrent requests** — Engine handles multiple `evaluate_batch` requests concurrently with per-request isolation.
+- **Configurable judge cache** — `ATTEST_JUDGE_CACHE_MAX_MB` (default: 100 MB), LRU eviction.
+- **History retention** — `ATTEST_HISTORY_MAX_ROWS` and `ATTEST_HISTORY_MAX_AGE_DAYS` cap SQLite history growth.
+- **Engine read timeout** — `ATTEST_ENGINE_TIMEOUT` (default: 30s) prevents indefinite hangs.
+- **Bounded continuous eval queue** — `ATTEST_CONTINUOUS_QUEUE_SIZE` (default: 1000) uses backpressure instead of unbounded growth.
+
+### Engine Performance
+
+- **Schema compiler cache** — JSON Schema compilation results cached per-schema hash.
+- **Trace validation short-circuit** — Non-verbose mode exits on first error.
+- **SQL optimizations** — Covering indexes on `list_results` and `drift_query`, prepared statement pooling.
+- **Result pagination** — `list_results` supports `limit`/`offset`.
+- **segmentio/encoding** — JSON codec switched from `encoding/json` to `segmentio/encoding/json` (~2x faster).
+
+### Adapter Fixes
+
+- **OpenAI** — Tool call `function.arguments` parsed from JSON string to object.
+- **Ollama** — Empty tool call arrays normalized to `undefined`.
+- **Gemini** — Token count reads `usage_metadata.total_token_count`.
+- **LangChain** — Full `BaseCallbackHandler` protocol (adds `ignore_chat_model`, `ignore_retriever`, `ignore_agent`, `ignore_retry`, `raise_error`). LangGraph `AIMessage` / `ToolMessage` output handling.
+- **Anthropic** — System prompt captured as a separate step.
+
+### TypeScript SDK — Full Python Parity
+
+- **Plugin system** — `PluginRegistry`, `AttestPlugin`, matching Python's `attest.plugins` entry point API.
+- **Continuous eval** — `ContinuousEvalRunner`, `Sampler`, `AlertDispatcher` ported from Python.
+- **LangChain.js adapter** — `@attest-ai/core/adapters/langchain` with automatic callback instrumentation.
+- **Discriminated union specs** — `Step` uses a `kind` discriminant for exhaustive `switch` handling.
 - **Branded types** — `TraceId`, `AssertionId`, `AgentId` newtypes prevent string mixing at compile time.
-- **Plugin system (TS)** — `PluginRegistry` and `AttestPlugin` interface for registering custom assertion plugins in TypeScript. Matches the Python `attest.plugins` entry point API.
-- **Continuous eval (TS)** — `ContinuousEvalRunner`, `Sampler`, and `AlertDispatcher` ported from Python. Supports sampling strategies and alerting via webhooks.
-- **LangChain.js adapter** — `@attest-ai/core/adapters/langchain` captures traces from LangChain.js agents with automatic callback instrumentation.
-- **TraceAdapter type safety** — Adapter `traceFromResponse()` return type is `Trace` (not `unknown`), enabling end-to-end type inference.
-- **CJS dual output** — tsup-based build produces both ESM and CommonJS bundles. `package.json` exports map resolves the correct format automatically.
-- **Python TraceTree analytics** — `TraceTree.summary()` returns aggregate metrics (total cost, tokens, latency, agent count, max depth) across the full delegation tree.
+- **CJS/ESM dual output** — tsup build with `package.json` exports map.
+- **TypeScript CLI** — `npx attest init` scaffolds a vitest-based test project.
+- **Simulation mode** — `ATTEST_SIMULATION=1` returns deterministic mock results without an engine process.
+
+### Python SDK
+
+- **`ExpectChain.plugin()`** — Chain custom plugin assertions alongside built-ins.
+- **`TraceTree.summary()`** — Aggregate metrics (total cost, tokens, latency, agent count, max depth).
+- **`delegate()` fix** — `parent_trace_id` correctly set on child traces.
+- **`expect()` accepts `Trace`** — Auto-wraps into `AgentResult` for manual adapter workflows.
+- **Plugin fixture** — Engine event loop runs in a background daemon thread via `run_coroutine_threadsafe()`.
+
+### Testing
+
+- Engine integration tests for all JSON-RPC methods, concurrent requests, error paths.
+- Dedicated adapter test suites verifying trace capture, token counting, tool call extraction.
+- Python: 193+ tests. TypeScript: 231 core tests + 25 vitest plugin tests.
+
+### Environment Variables
+
+| Variable                        | Purpose                                                     | Default           |
+| ------------------------------- | ----------------------------------------------------------- | ----------------- |
+| `ATTEST_BUDGET_MAX_COST`        | Maximum USD spend per evaluation                            | unset (unlimited) |
+| `ATTEST_JUDGE_CACHE_MAX_MB`     | Judge response LRU cache size                               | `100`             |
+| `ATTEST_HISTORY_MAX_ROWS`       | Maximum rows in history store                               | `10000`           |
+| `ATTEST_HISTORY_MAX_AGE_DAYS`   | Auto-delete results older than N days                       | `90`              |
+| `ATTEST_ENGINE_TIMEOUT`         | Engine response timeout (seconds)                           | `30`              |
+| `ATTEST_CONTINUOUS_QUEUE_SIZE`  | Continuous eval queue capacity                              | `1000`            |
 
 ### Breaking Changes
 
-- **Adapter API rename** — `capture()` is replaced by `traceFromResponse()` on all TypeScript adapters. The old name is removed (no deprecation shim).
+- **Adapter API rename** — TypeScript `capture()` replaced by `traceFromResponse()` on all adapters. Old name removed (no deprecation shim).
 - **CJS consumers** — If you previously used a bundler workaround for ESM-only `@attest-ai/core`, remove it. The package now ships dual ESM/CJS.
 
 ### Upgrade
 
 ```bash
-pnpm add @attest-ai/core@latest @attest-ai/vitest@latest
-```
-
----
-
-## v0.6.0 — 2026-02-25
-
-**Performance — engine-only optimizations**
-
-### Features
-
-- **Schema compiler cache** — JSON Schema compilation results are cached per-schema hash. Eliminates recompilation on repeated `evaluate_batch` calls with the same schema.
-- **Trace validation optimization** — Trace validation short-circuits on first error in non-verbose mode, reducing per-evaluation overhead.
-- **SQL query optimizations** — History store queries use covering indexes for `list_results` and `drift_query`. Batch inserts use prepared statements.
-- **Prepared statement pooling** — Frequently-used SQL statements are prepared once and reused across evaluations.
-- **Result pagination** — `list_results` supports `limit`/`offset` for large history stores.
-- **segmentio/encoding** — JSON codec switched from `encoding/json` to `segmentio/encoding/json` for ~2x faster marshal/unmarshal on evaluation payloads.
-
-### Notes
-
-- Engine-only release. No SDK changes. Update the engine binary via `ATTEST_ENGINE_PATH` or let auto-download fetch the new version.
-
----
-
-## v0.5.1 — 2026-02-24
-
-**Robustness — timeouts, bounded resources, new assertions**
-
-### Features
-
-- **Budget tracking** — `BudgetTracker` enforces per-evaluation cost limits. Set `ATTEST_BUDGET_MAX_COST` to cap total spend across judge and embedding assertions.
-- **Concurrent request support** — Engine handles multiple `evaluate_batch` requests concurrently with per-request isolation.
-- **Configurable judge cache** — Judge response cache size is configurable via `ATTEST_JUDGE_CACHE_MAX_MB` (default: 100 MB). Cache eviction uses LRU.
-- **History retention policy** — `ATTEST_HISTORY_MAX_ROWS` and `ATTEST_HISTORY_MAX_AGE_DAYS` control automatic cleanup of old evaluation results.
-- **Engine read timeout** — `ATTEST_ENGINE_TIMEOUT` (default: 30s) prevents SDK hangs when the engine process stalls.
-- **Bounded continuous eval queue** — `ATTEST_CONTINUOUS_QUEUE_SIZE` (default: 1000) caps the evaluation queue. Overflow uses backpressure instead of unbounded growth.
-- **ExpectChain.plugin()** — Chain custom plugin assertions alongside built-in ones: `expect(result).output_contains("ok").plugin("my_plugin", config)`.
-- **Simulation mode (TS)** — `ATTEST_SIMULATION=1` works in the TypeScript SDK, returning deterministic mock results without an engine process.
-
-### Fixes
-
-- **Engine read timeout** — SDK no longer hangs indefinitely if the engine process crashes or stalls mid-response.
-- **History store cleanup** — Unbounded row growth in SQLite history is now capped by retention policy.
-
-### Environment Variables
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `ATTEST_BUDGET_MAX_COST` | Maximum USD spend per evaluation | unset (unlimited) |
-| `ATTEST_JUDGE_CACHE_MAX_MB` | Judge response LRU cache size | `100` |
-| `ATTEST_HISTORY_MAX_ROWS` | Maximum rows in history store | `10000` |
-| `ATTEST_HISTORY_MAX_AGE_DAYS` | Auto-delete results older than N days | `90` |
-| `ATTEST_ENGINE_TIMEOUT` | Engine response timeout (seconds) | `30` |
-| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Continuous eval queue capacity | `1000` |
-
-### Upgrade
-
-```bash
 # Python
-uv add attest-ai@latest
+uv add attest-ai@0.5.0
 
 # TypeScript
-pnpm add @attest-ai/core@latest
-```
-
----
-
-## v0.5.0 — 2026-02-23
-
-**Correctness & Safety — adapter fixes, engine hardening**
-
-### Engine Fixes
-
-- **submit_plugin_result** — Implement the previously-stubbed `submit_plugin_result` JSON-RPC method. Plugin evaluations now round-trip correctly through the engine.
-- **Trace ID validation** — Engine rejects traces with missing or malformed `trace_id` fields instead of silently accepting them.
-- **Step type validation** — Unknown step types (`kind` field) return a typed error instead of being silently dropped.
-- **Assertion ID uniqueness** — Engine enforces unique assertion IDs within a batch. Duplicate IDs return an error.
-- **Error response codes** — All engine errors use spec-compliant JSON-RPC error codes (`-32600` to `-32603`).
-- **Shutdown draining** — `shutdown` waits for in-flight evaluations to complete (5s timeout) before exiting.
-
-### Adapter Fixes
-
-- **OpenAI** — Tool call arguments are parsed from JSON string to object. Previously, `function.arguments` was passed as a raw string, causing schema assertions on tool args to fail.
-- **Ollama** — Empty tool call arrays are normalized to `undefined` instead of `[]`. Prevents phantom "0 tool calls" in trace summaries.
-- **Gemini** — Token count extraction reads `usage_metadata.total_token_count` (was missing, reported as 0).
-- **LangChain** — Callback handler implements full `BaseCallbackHandler` protocol including `ignore_chat_model` and `ignore_retriever`.
-- **Anthropic** — System prompt is captured as a separate step when present.
-
-### TypeScript Fixes
-
-- **delegate()** — `parent_trace_id` is now set correctly on child traces, fixing broken `TraceTree` traversal for multi-agent scenarios.
-
-### Testing
-
-- **Adapter integration tests** — Each adapter has a dedicated test suite verifying trace capture, token counting, and tool call extraction.
-
-### Upgrade
-
-```bash
-# Python
-uv add attest-ai@latest
-
-# TypeScript
-pnpm add @attest-ai/core@latest
+pnpm add @attest-ai/core@0.5.0 @attest-ai/vitest@0.5.0
 ```
 
 ---

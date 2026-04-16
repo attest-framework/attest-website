@@ -220,6 +220,28 @@ expect(result).passes_judge(
 )
 ```
 
+### Dynamic Thresholds (v0.6.0+)
+
+Both Layer 5 (`output_similar_to`) and Layer 6 (`passes_judge`) accept `threshold="dynamic"` to use σ-based drift detection against historical baselines. Instead of comparing the score to a fixed value, the engine compares it to the rolling mean and standard deviation of previous scores for the same assertion.
+
+```python
+expect(result).output_similar_to("reference", threshold="dynamic")
+expect(result).passes_judge("is polite", threshold="dynamic")
+```
+
+**When to use:**
+- You don't know the right absolute threshold yet — let the baseline emerge from real usage
+- You want to catch quality regressions that a static threshold would miss
+- You're running continuous evaluation with enough history (≥ min-runs fallback) to establish a baseline
+
+Only `"dynamic"` and floats (`0.0`–`1.0`) are accepted. Other string values raise `ValueError`:
+
+```python
+expect(result).passes_judge("is polite", threshold="bad")  # ValueError
+```
+
+See also [`AttestClient.query_drift()`](/reference/python/client#query_drift) to inspect the drift report for a specific assertion.
+
 ## Layer 7: Trace Tree Validation
 
 Validate the structure of the execution trace.
