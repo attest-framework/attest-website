@@ -442,21 +442,24 @@ Asserts the output is semantically similar to a reference text.
 ```typescript
 outputSimilarTo(
   reference: string,
-  opts?: { threshold?: number; model?: string; soft?: boolean },
+  opts?: { threshold?: number | "dynamic"; model?: string; soft?: boolean },
 ): this
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `threshold` | `number` | `0.8` | Minimum cosine similarity score (0.0 to 1.0) |
-| `model` | `string` | Provider default | Embedding model override |
-| `soft` | `boolean` | `false` | Treat failure as warning |
+| Option      | Type                    | Default          | Description                                                                        |
+| ----------- | ----------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `threshold` | `number \| "dynamic"`   | `0.8`            | Minimum cosine similarity score (0.0 to 1.0), or `"dynamic"` for σ-based drift     |
+| `model`     | `string`                | Provider default | Embedding model override                                                           |
+| `soft`      | `boolean`               | `false`          | Treat failure as warning                                                           |
 
 ```typescript
 attestExpect(result).outputSimilarTo(
   "The product is available and ships within 2 business days",
   { threshold: 0.85 },
 );
+
+// Dynamic threshold — engine compares against historical mean ± σ
+attestExpect(result).outputSimilarTo("reference text", { threshold: "dynamic" });
 ```
 
 :::note
@@ -476,22 +479,25 @@ Asserts the output passes an LLM judge evaluation.
 ```typescript
 passesJudge(
   criteria: string,
-  opts?: { rubric?: string; threshold?: number; model?: string; soft?: boolean },
+  opts?: { rubric?: string; threshold?: number | "dynamic"; model?: string; soft?: boolean },
 ): this
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `rubric` | `string` | `"default"` | Evaluation rubric name |
-| `threshold` | `number` | `0.8` | Minimum judge score (0.0 to 1.0) |
-| `model` | `string` | Provider default | Judge model override |
-| `soft` | `boolean` | `false` | Treat failure as warning |
+| Option      | Type                    | Default          | Description                                                                 |
+| ----------- | ----------------------- | ---------------- | --------------------------------------------------------------------------- |
+| `rubric`    | `string`                | `"default"`      | Evaluation rubric name                                                      |
+| `threshold` | `number \| "dynamic"`   | `0.8`            | Minimum judge score (0.0 to 1.0), or `"dynamic"` for σ-based drift          |
+| `model`     | `string`                | Provider default | Judge model override                                                        |
+| `soft`      | `boolean`               | `false`          | Treat failure as warning                                                    |
 
 ```typescript
 attestExpect(result).passesJudge(
   "Response is helpful, accurate, and addresses all parts of the user question",
   { threshold: 0.9 },
 );
+
+// Dynamic threshold — catch regressions without picking an absolute number
+attestExpect(result).passesJudge("is polite", { threshold: "dynamic" });
 
 attestExpect(result).passesJudge("Response does not contain hallucinated facts", {
   rubric: "factuality",

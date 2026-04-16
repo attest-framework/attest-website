@@ -136,6 +136,10 @@ export default defineConfig({
               slug: "migration/from-manual-testing",
             },
             {
+              label: "v0.5.0 → v0.6.0",
+              slug: "migration/v05-to-v06",
+            },
+            {
               label: "v0.4.x → v0.5.0",
               slug: "migration/v04-to-v05",
             },
@@ -154,6 +158,7 @@ export default defineConfig({
         {
           label: "Blog",
           items: [
+            { label: "v0.6.0 Release", slug: "blog/v060-release" },
             { label: "v0.5.0 Release", slug: "blog/v050-release" },
             { label: "v0.4.2 Release", slug: "blog/v042-release" },
             { label: "v0.4.0 Launch", slug: "blog/v040-launch" },

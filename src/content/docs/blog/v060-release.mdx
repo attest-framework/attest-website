@@ -1,0 +1,195 @@
+---
+title: "Attest v0.6.0 — Drift Detection & SDK Parity"
+description: "Phase 4 completion: queryDrift, generateUserMessage, dynamic thresholds, vitest simulation mode, and persona alignment across all SDKs."
+---
+
+**Released: April 17, 2026**
+
+Attest v0.6.0 closes all Phase 4 SDK gaps. The Go engine was feature-complete at v0.5.0 — it implemented dynamic thresholds, drift detection, user-message simulation, and a full persona library. But the Python and TypeScript SDKs didn't expose all of those capabilities. This release brings both SDKs to full parity with the engine.
+
+## Highlights
+
+- **`queryDrift()` / `query_drift()`** — first-class drift reports from both SDKs
+- **`generateUserMessage()` / `generate_user_message()`** — simulated users via the engine's LLM provider
+- **Dynamic thresholds in the expect DSL** — σ-based drift detection with `threshold: "dynamic"`
+- **Vitest simulation mode** — `attestGlobalSetup()` respects `ATTEST_SIMULATION=1` and skips engine startup entirely
+- **Persona parity** — 4 built-in personas aligned across engine, Python, and TypeScript
+
+---
+
+## Drift Detection Reaches the SDKs
+
+The engine has shipped σ-based drift detection since v0.4.0 via the `query_drift` RPC. Until now, there was no SDK-level method to call it — you had to hand-write JSON-RPC payloads. That ends in v0.6.0.
+
+### Python
+
+```python
+from attest import AttestClient
+
+report = await client.query_drift("my_assertion_id", window_size=50)
+
+print(f"mean: {report.mean}, stddev: {report.stddev}")
+print(f"latest: {report.latest_score}, deviation: {report.deviation}σ")
+print(f"status: {report.status}")  # "stable" | "drift_detected" | "no_data"
+```
+
+### TypeScript
+
+```typescript
+import type { DriftReport } from "@attest-ai/core";
+
+const report: DriftReport = await client.queryDrift("my_assertion_id", 50);
+
+console.log(`mean: ${report.mean}, stddev: ${report.stddev}`);
+console.log(`latest: ${report.latest_score}, deviation: ${report.deviation}σ`);
+```
+
+Both methods return a stub `DriftReport` in simulation mode (`ATTEST_SIMULATION=1`), so tests don't hit the engine.
+
+---
+
+## Dynamic Thresholds in the Expect DSL
+
+The engine's `ClassifyDynamic` compares scores against a historical window using configurable σ-based thresholds. The SDKs now expose this via a string literal on any assertion that takes a threshold.
+
+### Python
+
+```python
+expect(result).output_similar_to("reference", threshold="dynamic")
+expect(result).passes_judge("is polite", threshold="dynamic")
+```
+
+Python validates the string: `threshold="bad"` raises `ValueError`. Only `"dynamic"` and floats (0.0–1.0) are accepted.
+
+### TypeScript
+
+```typescript
+attestExpect(result).outputSimilarTo("reference", { threshold: "dynamic" });
+attestExpect(result).passesJudge("is polite", { threshold: "dynamic" });
+```
+
+The TypeScript type is now `number | "dynamic"`, so the compiler catches typos at call sites.
+
+When threshold is `"dynamic"`, the engine consults the history store, computes the rolling mean and stddev, and fails the assertion if the latest score deviates more than N σ from baseline. Useful for catching quality regressions that a static threshold would miss.
+
+---
+
+## Vitest Simulation Mode
+
+The TypeScript examples repo had a papercut in CI: running `@attest-ai/vitest` tests always required an engine binary, even for deterministic assertions that didn't need one. `attestGlobalSetup()` would spawn the engine unconditionally, and there was no way to skip it.
+
+v0.6.0 teaches the vitest plugin about simulation mode:
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globalSetup: ["@attest-ai/vitest/setup"],
+  },
+});
+```
+
+```bash
+ATTEST_SIMULATION=1 pnpm test
+```
+
+In simulation mode:
+- `attestGlobalSetup().setup()` returns immediately without spawning the engine
+- `evaluate()` returns deterministic pass results via `simulationEvaluateBatch()`
+- `useAttest()` returns a simulation-aware fixture with no engine dependency
+
+This unblocks CI in the `attest-examples` repo and any downstream project that wants to run Attest tests in a container without downloading the engine binary.
+
+---
+
+## Simulated Users from the SDK
+
+The engine has generated simulated user messages since v0.3 — `generate_user_message` returns a persona-driven response from the configured LLM provider. The SDKs now wrap this directly.
+
+### Python
+
+```python
+from attest import AttestClient, ConversationMessage
+from attest.simulation import FRIENDLY_USER, ADVERSARIAL_USER
+
+history = [
+    ConversationMessage(role="assistant", content="How can I help?"),
+]
+
+message = await client.generate_user_message(
+    persona=ADVERSARIAL_USER,
+    conversation_history=history,
+)
+```
+
+### TypeScript
+
+```typescript
+import { ADVERSARIAL_USER } from "@attest-ai/core/personas";
+
+const history = [{ role: "assistant", content: "How can I help?" }];
+
+const message = await client.generateUserMessage(ADVERSARIAL_USER, history);
+```
+
+Both SDKs accept an optional `faultConfig` for injecting errors, latency jitter, content corruption, or timeouts — useful for resilience testing.
+
+---
+
+## Persona Parity
+
+Four personas are now aligned across all three platforms:
+
+| Persona              | Temperature | Style         | Use Case                                  |
+| -------------------- | ----------- | ------------- | ----------------------------------------- |
+| `FRIENDLY_USER`      | 0.7         | friendly      | Happy path — clear, well-formed requests  |
+| `ADVERSARIAL_USER`   | 0.9         | adversarial   | Edge cases, boundary probing              |
+| `CONFUSED_USER`      | 0.8         | confused      | Vague requests, contradictions            |
+| `COOPERATIVE_USER`   | 0.6         | cooperative   | Actively helpful, provides clear context  |
+
+`CooperativeUser` is new in the Go engine for v0.6.0. The TypeScript SDK gets a dedicated `personas.ts` module exporting all four. Python's export had a small bug — `COOPERATIVE_USER` existed in `personas.py` but wasn't in `attest.simulation.__all__` — that's fixed now.
+
+---
+
+## TypeScript Config Parity
+
+Python's `config(sample_rate=...)` has existed since continuous eval shipped. TypeScript only had `config({ simulation })`. v0.6.0 brings full parity:
+
+```typescript
+import { config, getSampleRate } from "@attest-ai/core";
+
+config({ sampleRate: 0.1 });  // 10% sampling
+console.log(getSampleRate());  // 0.1
+
+// Or via env var
+process.env["ATTEST_SAMPLE_RATE"] = "0.05";
+console.log(getSampleRate());  // 0.05
+```
+
+Validation catches out-of-range values: `config({ sampleRate: 1.5 })` throws `RangeError`.
+
+---
+
+## Migration
+
+No breaking changes. All new APIs are additive.
+
+```bash
+# Python
+uv add attest-ai@0.6.0
+
+# TypeScript
+pnpm add @attest-ai/core@0.6.0 @attest-ai/vitest@0.6.0
+```
+
+The engine binary is also at v0.6.0 but has no behavior changes from v0.5.0 — this release is purely SDK-side. Both SDKs auto-download the matching engine version on first use.
+
+---
+
+## What's Next
+
+With Phase 4 complete, the roadmap moves to Phase 5: Go SDK, Attest Cloud MVP, and a benchmark registry. Ahead of that, expect a GTM push — the code has been stable since v0.5.0 in February, and the bottleneck is now visibility.
+
+If you've been running Attest in production or CI, we'd love to hear from you. Open an issue on [GitHub](https://github.com/attest-framework/attest) or jump in on the existing discussions.

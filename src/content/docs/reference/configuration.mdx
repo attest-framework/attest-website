@@ -54,9 +54,10 @@ ATTEST_ENGINE_PATH
 
 ## Continuous Evaluation
 
-| Variable | Purpose | Default | Since |
-|----------|---------|---------|-------|
-| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Maximum number of pending evaluations in the continuous eval queue. When full, new submissions block until space is available (backpressure). | `1000` | v0.5.1 |
+| Variable                       | Purpose                                                                                                                                                        | Default | Since  |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| `ATTEST_CONTINUOUS_QUEUE_SIZE` | Maximum number of pending evaluations in the continuous eval queue. When full, new submissions block until space is available (backpressure).                  | `1000`  | v0.5.0 |
+| `ATTEST_SAMPLE_RATE`           | Sampling rate (`0.0`–`1.0`) for continuous evaluation. Also readable via `getSampleRate()` / `get_sample_rate()`. Programmatic `config({ sampleRate })` takes precedence. | `0`     | v0.6.0 |
 
 ## LLM Providers
 
