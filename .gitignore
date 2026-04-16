@@ -7,3 +7,6 @@ dist/
 .env.*
 .npmrc
 .pnpm-store/
+
+# Agentic / AI Tooling
+.claude/
