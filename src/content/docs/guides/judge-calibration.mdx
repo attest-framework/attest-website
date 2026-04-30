@@ -1,0 +1,211 @@
+---
+title: "Judge Calibration"
+description: "Turn the LLM-as-judge layer into an audited measurement instrument with rubric versioning, repeated-run variance, bias probes, and human-label agreement metrics."
+---
+
+LLM-as-judge assertions (Layer 6) are statistical, not deterministic. A judge that scores `0.85` once may score `0.55` on the next run, and that variance compounds across CI runs. The calibrated-judge subsystem makes that variance visible and lets you detect when the judge itself starts drifting.
+
+This guide walks through the four mechanisms Attest exposes:
+
+1. **Rubric versioning** — every score is tagged with the rubric and version it was produced against.
+2. **Repeated-run variance** — `repeat: N` samples the judge `N` times and reports mean + stddev.
+3. **Bias probes** — verbosity, position, and self-preference mutators flag judges that score on style instead of content.
+4. **Calibration sets** — score the judge against human labels and surface Cohen's κ, agreement %, and ROC-AUC alongside results.
+
+## Rubric versioning
+
+Every built-in rubric (`default`, `helpfulness`, `accuracy`, `safety`) is pinned to a version. Custom rubrics passed to the registry must declare a version, otherwise registration fails:
+
+```python
+from attest._proto.types import JudgeMetadata  # types only — registry runs in the engine
+
+# Engine-side registration is rejected without a version:
+#   error: rubric version must not be empty
+```
+
+Calibration metrics are stored keyed by `(rubric_name, rubric_version, prompt_hash)`. Bumping the version invalidates prior calibration data on purpose — when the rubric prompt changes, old κ scores are not interchangeable.
+
+The version surfaces in every report:
+
+```text
+✘ FAIL judge_001 score=0.40
+      judge:      gpt-4.1 / default @ v1
+      prompt:     #abcd1234ef567890
+```
+
+## Repeated-run variance
+
+Set `repeat: N` on a judge spec to run the model `N` times concurrently and take the median. Mean, sample stddev, and the per-sample scores are recorded on `JudgeMetadata`:
+
+```python
+from attest import expect
+
+await expect(trace).output.judges(
+    criteria="Answer is factually accurate.",
+    rubric="accuracy",
+    threshold=0.8,
+    repeat=5,
+)
+```
+
+`repeat` accepts integers in `[1, 16]`. Out-of-range values fail the assertion fast rather than silently degrading to single-pass. The legacy `meta_eval: true` flag still works — it expands to `repeat: 3`.
+
+Cost is reported as `N × per-call cost`, so a `repeat: 5` assertion in a 100-test suite shows up at 5× spend in the report summary. There is no silent fan-out.
+
+When the spread (max − min) exceeds `0.2`, the report renders a `HIGH VARIANCE` flag:
+
+```text
+samples:    [0.20, 0.50, 0.80] mean=0.50 stddev=0.30 ⚠ HIGH VARIANCE
+```
+
+A high-variance judge is a calibration signal: tighten the rubric, lower the temperature, or use a stronger judge model.
+
+## Bias probes
+
+Add `bias_probes: ["all"]` (or a subset of `verbosity`, `position`, `self_preference`) to surface known LLM-judge failure modes:
+
+```python
+await expect(trace).output.judges(
+    criteria="Response addresses the question.",
+    rubric="helpfulness",
+    threshold=0.7,
+    bias_probes=["all"],
+)
+```
+
+Each probe runs the judge against a controlled mutation of the agent output and records the score delta versus the baseline:
+
+| Probe             | Mutation                                              | What it catches                          |
+| ----------------- | ----------------------------------------------------- | ---------------------------------------- |
+| `verbosity`       | Appends semantically-empty filler text.               | Judges that reward longer answers.       |
+| `position`        | Prepends a high-status framing claim.                 | Position bias toward early prompt content. |
+| `self_preference` | Tags the output as same-model.                        | Family bias when judge and agent share a base model. |
+
+Probes mutate only the content between `<<<AGENT_OUTPUT_START>>>` delimiters, so the rubric stays a fixed reference. A well-calibrated judge has `|delta| < 0.05` across all probes:
+
+```text
+bias:       verbosity Δ+0.02, position Δ-0.01, self_preference Δ+0.04
+```
+
+Probes add cost — one extra judge call per probe. Run them on a sampled subset (one in twenty CI runs) rather than every assertion.
+
+## Calibration sets
+
+The strongest calibration signal is agreement against human labels. Attest ingests CSV or JSONL label files and computes three metrics:
+
+- **Cohen's κ** — chance-corrected agreement at a binarisation threshold.
+- **Agreement %** — raw match rate above/below the threshold.
+- **ROC-AUC** — Mann-Whitney rank-sum identity over judge scores ranked against human labels.
+
+### Label file formats
+
+CSV (header optional):
+
+```text
+input,human_label,judge_score
+"customer asks about refund policy",0.9,0.85
+"agent dodges the question",0.1,0.2
+```
+
+JSONL:
+
+```text
+{"input": "customer asks about refund policy", "human_label": 0.9, "judge_score": 0.85}
+{"input": "agent dodges the question", "human_label": 0.1}
+```
+
+`judge_score` is optional — rows without it are reported as `missing_judge` so you know how many labels still need to be scored.
+
+### CLI
+
+The Python SDK and engine expose identical `calibrate` subcommands:
+
+```bash
+# Python SDK
+attest calibrate --labels labels.csv --rubric default --threshold 0.5
+
+# Engine binary
+attest-engine calibrate --labels labels.csv --rubric default --persist
+```
+
+Output is JSON, identical across SDKs and the engine:
+
+```json
+{
+  "rubric_name": "default",
+  "rubric_version": "v1",
+  "threshold": 0.5,
+  "label_count": 50,
+  "agreement": 0.84,
+  "cohen_kappa": 0.68,
+  "roc_auc": 0.91,
+  "missing_judge": 0
+}
+```
+
+The `--persist` flag (engine only) writes the labels into the calibration store keyed by `(rubric_name, rubric_version, prompt_hash)`. Persisted data feeds the `JudgeAgreement` field on subsequent assertion results so reports can show agreement next to scores without re-running the calibration.
+
+The CLI deliberately does **not** call the judge model — labels must already include `judge_score`. This keeps calibration runs cheap, deterministic, and runnable in CI without LLM credentials. To produce judge scores, run the assertion suite first (which records prompt hashes), then merge those scores into your labels file.
+
+### Programmatic API
+
+Compute agreement without going through the CLI:
+
+```python
+from attest.calibration import LabelPair, compute_agreement, load_labels
+from pathlib import Path
+
+records = load_labels(Path("labels.csv"))
+pairs = [
+    LabelPair(human=r.human_label, judge=r.judge_score)
+    for r in records if r.judge_known
+]
+result = compute_agreement(pairs, threshold=0.5)
+print(f"κ = {result.cohen_kappa:.2f}, AUC = {result.roc_auc:.2f}")
+```
+
+TypeScript exposes the same surface:
+
+```typescript
+import { computeAgreement, loadLabelsCSV } from "@attest-ai/core";
+import { readFileSync } from "node:fs";
+
+const records = loadLabelsCSV(readFileSync("labels.csv", "utf-8"));
+const pairs = records
+  .filter((r) => r.judgeKnown)
+  .map((r) => ({ human: r.humanLabel, judge: r.judgeScore }));
+const result = computeAgreement(pairs, 0.5);
+console.log(`κ = ${result.cohenKappa.toFixed(2)}, AUC = ${result.rocAuc.toFixed(2)}`);
+```
+
+Both implementations produce byte-identical metrics on identical inputs.
+
+## Reading reports
+
+When all four mechanisms are wired, a failed judge assertion reads like a complete diagnostic:
+
+```text
+✘ FAIL judge_001 (L6 llm_judge) score=0.40
+      trace path: output.answer
+      expected:   judge_score >= 0.80 against rubric "accuracy"
+      actual:     judge_score=0.40, model=gpt-4.1
+      judge:      gpt-4.1 / accuracy @ v1
+      prompt:     #abcd1234ef567890
+      samples:    [0.35, 0.42, 0.45, 0.40, 0.38] mean=0.40 stddev=0.04
+      bias:       verbosity Δ+0.02, position Δ-0.01, self_preference Δ+0.04
+      calibrated: 50 labels, agreement=0.84, κ=0.68
+      hint:       Calibrate the judge: check rubric clarity, sample human labels, or raise the threshold only if false-positives matter more than false-negatives.
+```
+
+You can read the failure as: low score, low variance across 5 runs (the judge is confident), no bias signal, and an audited 0.84 agreement against 50 human labels for this rubric. That points at the agent output, not the judge — exactly what calibration is supposed to tell you.
+
+## When to use what
+
+| Mechanism            | Cost              | When to enable                                    |
+| -------------------- | ----------------- | ------------------------------------------------- |
+| `repeat: N`          | N× per assertion  | Always for high-stakes judge assertions.          |
+| `bias_probes`        | +N per assertion  | Sampled (1 in 10–20 CI runs) for spend-sensitive suites. |
+| Calibration sets     | One-shot offline  | When scoring drifts unexpectedly or rubric changes. |
+| Rubric versioning    | Free              | Mandatory.                                        |
+
+Calibration is a debugging tool, not a daily gate. Run it when a rubric changes, a model is upgraded, or a regression is suspected — then pin the agreement number into the rubric description so future maintainers know what "good" looks like.
