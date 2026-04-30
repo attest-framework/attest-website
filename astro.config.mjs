@@ -59,6 +59,7 @@ export default defineConfig({
             { label: "Simulation Mode", slug: "guides/simulation" },
             { label: "Continuous Evaluation", slug: "guides/continuous-eval" },
             { label: "Drift Detection", slug: "guides/drift-detection" },
+            { label: "Judge Calibration", slug: "guides/judge-calibration" },
           ],
         },
         {
