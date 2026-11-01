@@ -1,5 +1,9 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import { existsSync } from "node:fs";
+
+// Written only by scripts/sync-release.mjs; absent until the first release sync.
+const hasSyncedGuides = existsSync(new URL("./src/content/docs/sdk-guides", import.meta.url));
 
 export default defineConfig({
   site: "https://attest-framework.github.io",
@@ -62,6 +66,9 @@ export default defineConfig({
             { label: "Judge Calibration", slug: "guides/judge-calibration" },
           ],
         },
+        ...(hasSyncedGuides
+          ? [{ label: "SDK Guides", autogenerate: { directory: "sdk-guides" } }]
+          : []),
         {
           label: "Reference",
           items: [

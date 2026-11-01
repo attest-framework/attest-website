@@ -1,0 +1,206 @@
+name: Sync release docs
+
+# Copies attest's CHANGELOG.md and docs/guides/*.md at a published release tag
+# into the website and opens a PR. attest's release.yml sends, after the
+# GitHub Release is published:
+#   repository_dispatch  event_type: release-sync  client_payload: {"tag": "vX.Y.Z[-rc.N]"}
+#
+# `build` runs third-party code (pnpm install/build) with a read-only token.
+# `pr` holds the write token and runs no Node or pnpm; it only accepts the
+# artifact's expected file names.
+on:
+  repository_dispatch:
+    types: [release-sync]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "attest release tag, e.g. v1.0.0-rc.1"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-sync-${{ github.event.client_payload.tag || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Validate tag
+        id: tag
+        env:
+          RAW_TAG: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || inputs.tag }}
+        run: |
+          if [[ ! "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "::error::tag must match vX.Y.Z or vX.Y.Z-rc.N"
+            exit 1
+          fi
+          echo "tag=$RAW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Require a published release and resolve its commit
+        id: release
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! draft=$(gh api "repos/attest-framework/attest/releases/tags/$TAG" --jq '.draft') \
+            || [[ "$draft" != "false" ]]; then
+            echo "::error::attest has no published (non-draft) GitHub Release for $TAG"
+            exit 1
+          fi
+          refs=$(git ls-remote https://github.com/attest-framework/attest "refs/tags/$TAG" "refs/tags/$TAG^{}")
+          # Annotated tags list the commit on the peeled ^{} line; lightweight
+          # tags have only the direct line, which is the commit itself.
+          sha=$(awk -v ref="refs/tags/$TAG^{}" '$2 == ref { print $1 }' <<< "$refs")
+          if [[ -z "$sha" ]]; then
+            sha=$(awk -v ref="refs/tags/$TAG" '$2 == ref { print $1 }' <<< "$refs")
+          fi
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::could not resolve refs/tags/$TAG to a commit"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "attest $TAG -> $sha"
+
+      - name: Checkout website
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Checkout attest at the release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: attest-framework/attest
+          ref: ${{ steps.release.outputs.sha }}
+          path: .attest-src
+          persist-credentials: false
+          sparse-checkout: |
+            /CHANGELOG.md
+            /docs/guides/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10.33.3
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync files
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: node scripts/sync-release.mjs .attest-src "$TAG" "$SHA"
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Upload synced files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-sync
+          path: |
+            src/synced/CHANGELOG.md
+            src/content/docs/sdk-guides/
+          if-no-files-found: error
+          retention-days: 1
+
+  pr:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download synced files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-sync
+          path: ${{ runner.temp }}/release-sync
+
+      # The artifact root is src/ (the common parent of the uploaded paths).
+      - name: Verify and copy synced files
+        env:
+          ARTIFACT: ${{ runner.temp }}/release-sync
+        run: |
+          shopt -s nullglob
+          bad=$(cd "$ARTIFACT" && find . -mindepth 1 \
+            ! \( -type d \( -path ./synced -o -path ./content -o -path ./content/docs -o -path ./content/docs/sdk-guides \) \) \
+            ! \( -type f -path ./synced/CHANGELOG.md \) \
+            ! \( -type f -regex '\./content/docs/sdk-guides/[a-z0-9][a-z0-9-]*\.md' \) -print)
+          if [[ -n "$bad" ]]; then
+            echo "::error::unexpected entries in artifact:"
+            echo "$bad"
+            exit 1
+          fi
+          guides=("$ARTIFACT"/content/docs/sdk-guides/*.md)
+          if [[ ! -f "$ARTIFACT/synced/CHANGELOG.md" || ${#guides[@]} -eq 0 ]]; then
+            echo "::error::artifact must contain synced/CHANGELOG.md and at least one guide"
+            exit 1
+          fi
+          cp "$ARTIFACT/synced/CHANGELOG.md" src/synced/CHANGELOG.md
+          rm -rf src/content/docs/sdk-guides
+          mkdir -p src/content/docs/sdk-guides
+          cp "${guides[@]}" src/content/docs/sdk-guides/
+
+      - name: Open or update PR
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          SHA: ${{ needs.build.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git add -A -- src/synced src/content/docs/sdk-guides
+          if git diff --cached --quiet; then
+            echo "::notice::CHANGELOG.md and guides at $TAG already match the website"
+            exit 0
+          fi
+          branch="docs/release-sync-$TAG"
+          # Empty when the branch does not exist; the lease then requires absence.
+          remote_sha=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          pr_number=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$pr_number" ]]; then
+            approvals=$(gh api "repos/$REPO/pulls/$pr_number/reviews" --jq '[.[] | select(.state == "APPROVED")] | length')
+            if [[ "$approvals" != "0" ]]; then
+              echo "::error::PR #$pr_number is already approved; close it or dismiss the approval before re-syncing $TAG"
+              exit 1
+            fi
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -m "docs(changelog): sync changelog and guides from attest $TAG"
+          # Token only on this command line, never in .git/config.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            push --force-with-lease="refs/heads/$branch:$remote_sha" origin "HEAD:refs/heads/$branch"
+          body="Copies \`CHANGELOG.md\` and \`docs/guides/*.md\` from attest-framework/attest at \`$TAG\` (commit \`$SHA\`). Generated by \`.github/workflows/release-sync.yml\`; the site built in the run that produced these files. Review the full diff: synced Markdown comes from another repository."
+          if [[ -n "$pr_number" ]]; then
+            gh pr edit "$pr_number" --body "$body"
+            echo "::notice::updated PR #$pr_number for $branch"
+          else
+            gh pr create --base main --head "$branch" \
+              --title "docs(changelog): sync changelog and guides from attest $TAG" \
+              --body "$body"
+          fi

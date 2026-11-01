@@ -1,0 +1,252 @@
+<!-- Seeded from the previous hand-written changelog page. The first release sync (scripts/sync-release.mjs) replaces this file with attest-framework/attest CHANGELOG.md. -->
+
+All notable changes to Attest are documented here. Versions follow [Semantic Versioning](https://semver.org/).
+
+---
+
+## v0.6.0 — 2026-04-17
+
+**Drift Detection & SDK Parity — Phase 4 completion**
+
+Closes all Phase 4 SDK gaps. The engine was feature-complete at v0.5.0 but the SDKs didn't expose all capabilities. This release brings Python and TypeScript SDKs to full parity with the engine.
+
+### Features
+
+- **`queryDrift()` / `query_drift()`** — SDK methods for the engine's `query_drift` RPC. Returns a `DriftReport` with mean, stddev, deviation, and status for any assertion over a configurable window.
+- **`generateUserMessage()` / `generate_user_message()`** — SDK methods for the engine's `generate_user_message` RPC. Generates simulated user messages via the engine's configured LLM provider, accepting a persona, conversation history, and optional fault injection config.
+- **Dynamic thresholds in expect DSL** — `outputSimilarTo()` and `passesJudge()` now accept `threshold: "dynamic"` to use σ-based drift detection against historical baselines. Python validates invalid strings and raises `ValueError`; TypeScript uses a `number | "dynamic"` union type.
+- **Vitest simulation mode** — `attestGlobalSetup()` respects `ATTEST_SIMULATION=1` and skips engine startup entirely. `useAttest()` and `evaluate()` return simulation-aware fixtures. Unblocks TS example tests that previously required an engine binary.
+- **TypeScript `sampleRate` config** — `config({ sampleRate })` and `getSampleRate()` with `ATTEST_SAMPLE_RATE` env var support. Mirrors the existing Python SDK config.
+- **4 built-in personas, aligned across platforms** — `FRIENDLY_USER`, `ADVERSARIAL_USER`, `CONFUSED_USER`, `COOPERATIVE_USER` defined identically in Go engine, Python SDK, and TypeScript SDK (`@attest-ai/core/personas`).
+
+### New Types
+
+Both SDKs now export: `DriftReport`, `ConversationMessage`, `SimulatePersona`, `SimulateFaultConfig`.
+
+### Upgrade
+
+No breaking changes. All new APIs are purely additive.
+
+```bash
+# Python
+uv add attest-ai@0.6.0
+
+# TypeScript
+pnpm add @attest-ai/core@0.6.0 @attest-ai/vitest@0.6.0
+```
+
+### Engine
+
+The engine binary is also at v0.6.0 with no behavior changes since v0.5.0 — this release is purely SDK-side work. Both SDKs auto-download the matching engine version.
+
+---
+
+## v0.5.0 — 2026-02-27
+
+**The Alignment Release — version unification, engine performance, TypeScript parity, hardening**
+
+Unifies engine, Python SDK, and TypeScript SDK at a single version for the first time. Ships 48 items across correctness, performance, TypeScript parity, and production hardening.
+
+### Engine Fixes & Hardening
+
+- **`submit_plugin_result`** — Implement the previously-stubbed JSON-RPC method. Plugin evaluations now round-trip correctly.
+- **Trace ID & step type validation** — Engine rejects malformed traces instead of silently accepting them.
+- **Assertion ID uniqueness** — Duplicate IDs within a batch return an error.
+- **Spec-compliant error codes** — All errors use JSON-RPC error codes (`-32600` to `-32603`).
+- **Shutdown draining** — `shutdown` waits up to 5s for in-flight evaluations to complete.
+- **Budget tracking** — `ATTEST_BUDGET_MAX_COST` caps total spend per evaluation.
+- **Concurrent requests** — Engine handles multiple `evaluate_batch` requests concurrently with per-request isolation.
+- **Configurable judge cache** — `ATTEST_JUDGE_CACHE_MAX_MB` (default: 100 MB), LRU eviction.
+- **History retention** — `ATTEST_HISTORY_MAX_ROWS` and `ATTEST_HISTORY_MAX_AGE_DAYS` cap SQLite history growth.
+- **Engine read timeout** — `ATTEST_ENGINE_TIMEOUT` (default: 30s) prevents indefinite hangs.
+- **Bounded continuous eval queue** — `ATTEST_CONTINUOUS_QUEUE_SIZE` (default: 1000) uses backpressure instead of unbounded growth.
+
+### Engine Performance
+
+- **Schema compiler cache** — JSON Schema compilation results cached per-schema hash.
+- **Trace validation short-circuit** — Non-verbose mode exits on first error.
+- **SQL optimizations** — Covering indexes on `list_results` and `drift_query`, prepared statement pooling.
+- **Result pagination** — `list_results` supports `limit`/`offset`.
+- **segmentio/encoding** — JSON codec switched from `encoding/json` to `segmentio/encoding/json` (~2x faster).
+
+### Adapter Fixes
+
+- **OpenAI** — Tool call `function.arguments` parsed from JSON string to object.
+- **Ollama** — Empty tool call arrays normalized to `undefined`.
+- **Gemini** — Token count reads `usage_metadata.total_token_count`.
+- **LangChain** — Full `BaseCallbackHandler` protocol (adds `ignore_chat_model`, `ignore_retriever`, `ignore_agent`, `ignore_retry`, `raise_error`). LangGraph `AIMessage` / `ToolMessage` output handling.
+- **Anthropic** — System prompt captured as a separate step.
+
+### TypeScript SDK — Full Python Parity
+
+- **Plugin system** — `PluginRegistry`, `AttestPlugin`, matching Python's `attest.plugins` entry point API.
+- **Continuous eval** — `ContinuousEvalRunner`, `Sampler`, `AlertDispatcher` ported from Python.
+- **LangChain.js adapter** — `@attest-ai/core/adapters/langchain` with automatic callback instrumentation.
+- **Discriminated union specs** — `Step` uses a `kind` discriminant for exhaustive `switch` handling.
+- **Branded types** — `TraceId`, `AssertionId`, `AgentId` newtypes prevent string mixing at compile time.
+- **CJS/ESM dual output** — tsup build with `package.json` exports map.
+- **TypeScript CLI** — `npx attest init` scaffolds a vitest-based test project.
+- **Simulation mode** — `ATTEST_SIMULATION=1` returns deterministic mock results without an engine process.
+
+### Python SDK
+
+- **`ExpectChain.plugin()`** — Chain custom plugin assertions alongside built-ins.
+- **`TraceTree.summary()`** — Aggregate metrics (total cost, tokens, latency, agent count, max depth).
+- **`delegate()` fix** — `parent_trace_id` correctly set on child traces.
+- **`expect()` accepts `Trace`** — Auto-wraps into `AgentResult` for manual adapter workflows.
+- **Plugin fixture** — Engine event loop runs in a background daemon thread via `run_coroutine_threadsafe()`.
+
+### Testing
+
+- Engine integration tests for all JSON-RPC methods, concurrent requests, error paths.
+- Dedicated adapter test suites verifying trace capture, token counting, tool call extraction.
+- Python: 193+ tests. TypeScript: 231 core tests + 25 vitest plugin tests.
+
+### Environment Variables
+
+| Variable                        | Purpose                                                     | Default           |
+| ------------------------------- | ----------------------------------------------------------- | ----------------- |
+| `ATTEST_BUDGET_MAX_COST`        | Maximum USD spend per evaluation                            | unset (unlimited) |
+| `ATTEST_JUDGE_CACHE_MAX_MB`     | Judge response LRU cache size                               | `100`             |
+| `ATTEST_HISTORY_MAX_ROWS`       | Maximum rows in history store                               | `10000`           |
+| `ATTEST_HISTORY_MAX_AGE_DAYS`   | Auto-delete results older than N days                       | `90`              |
+| `ATTEST_ENGINE_TIMEOUT`         | Engine response timeout (seconds)                           | `30`              |
+| `ATTEST_CONTINUOUS_QUEUE_SIZE`  | Continuous eval queue capacity                              | `1000`            |
+
+### Breaking Changes
+
+- **Adapter API rename** — TypeScript `capture()` replaced by `traceFromResponse()` on all adapters. Old name removed (no deprecation shim).
+- **CJS consumers** — If you previously used a bundler workaround for ESM-only `@attest-ai/core`, remove it. The package now ships dual ESM/CJS.
+
+### Upgrade
+
+```bash
+# Python
+uv add attest-ai@0.5.0
+
+# TypeScript
+pnpm add @attest-ai/core@0.5.0 @attest-ai/vitest@0.5.0
+```
+
+---
+
+## v0.4.2 — 2026-02-22
+
+**SDK patch release — adapter fixes and async compatibility**
+
+### Fixes
+
+- **LangChain adapter** — Add missing callback protocol attributes (`ignore_agent`, `ignore_retry`, `raise_error`) required by LangChain's `BaseCallbackHandler` interface. Handle LangGraph `AIMessage` and `ToolMessage` output formats so traces capture tool-call responses correctly.
+- **expect() DSL** — Accept `Trace` directly in addition to `AgentResult`. Auto-wraps into `AgentResult` for manual adapter workflows that build traces via `TraceBuilder` without going through a provider adapter.
+- **Plugin fixture** — Run the engine event loop in a background daemon thread with `run_coroutine_threadsafe()` bridge. Fixes `Future attached to a different loop` errors when pytest-asyncio tests (e.g., google-adk) call into the engine from a separate event loop.
+
+### Upgrade
+
+```bash
+uv add attest-ai@latest
+```
+
+### Notes
+
+- **No engine changes.** The Go engine binary remains at v0.4.0. `ENGINE_VERSION` is unchanged; auto-download continues to fetch v0.4.0 binaries.
+
+---
+
+## v0.4.1 — 2026-02-21
+
+**SDK patch release — engine auto-download**
+
+### Features
+
+- **Engine auto-download** — Both Python and TypeScript SDKs now automatically download the `attest-engine` binary from GitHub Releases on first use. No manual binary setup required after `uv add attest-ai` or `pnpm add @attest-ai/core`.
+- **SHA256 verification** — Downloaded binaries are verified against `checksums-sha256.txt` from the release. Checksum mismatch aborts the download with a clear error.
+- **Version-pinned cache** — Binaries are cached at `~/.attest/bin/` with a `.engine-version` marker. SDK version mismatch triggers automatic re-download.
+- **Discovery chain** — Engine binary resolution follows a predictable order:
+
+    ```
+    ATTEST_ENGINE_PATH env var
+      → PATH lookup
+      → ~/.attest/bin/ (shared cache, version-checked)
+      → ../../bin/ (monorepo dev layout)
+      → ./bin/ (local)
+      → auto-download from GitHub Releases
+      → actionable error message
+    ```
+
+- **Opt-out** — Set `ATTEST_ENGINE_NO_DOWNLOAD=1` to disable network access. The error message explains alternative installation methods.
+
+### Fixes
+
+- **pytest plugin** — `pytest.skip()` replaced with `pytest.fail()` when the engine binary is missing. With auto-download in place, silent skipping is no longer appropriate; real errors are now surfaced.
+- **TypeScript VERSION** — Corrected from `0.3.0` to `0.4.1`.
+
+### Other
+
+- **Examples moved** — All example projects relocated to [`attest-framework/attest-examples`](https://github.com/attest-framework/attest-examples) for independent versioning. A redirect README remains in the main repo.
+
+### Install / Upgrade
+
+#### Python
+
+```bash
+uv add attest-ai
+```
+
+#### TypeScript
+
+```bash
+pnpm add @attest-ai/core
+```
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ATTEST_ENGINE_PATH` | Absolute path to engine binary — skips all discovery | unset |
+| `ATTEST_ENGINE_NO_DOWNLOAD` | `1` / `true` / `yes` disables auto-download | unset (enabled) |
+
+---
+
+## v0.4.0 — 2026-02-20
+
+**Production & Polish**
+
+- Result history with SQLite storage
+- Drift detection (σ-based statistical thresholds)
+- Continuous eval runner with sampling and alerting
+- Plugin system (`attest.plugins` entry point group)
+- CrewAI adapter (11 adapters total)
+- CLI `init` and `validate` commands
+- MkDocs documentation site
+
+---
+
+## v0.3.0 — 2026-02-20
+
+**Simulation & Multi-Agent**
+
+- Layers 7-8: simulation runtime, multi-agent testing
+- TypeScript SDK (first npm publish: `@attest-ai/core`, `@attest-ai/vitest`)
+- Framework adapters: LangChain, Google ADK, LlamaIndex
+
+---
+
+## v0.2.0 — 2026-02-19
+
+**Semantic & Judge Layers**
+
+- Layers 5-6: ONNX local embeddings, LLM-as-judge
+- Soft failure support
+- OTel adapter
+- `setup-attest` GitHub Action
+
+---
+
+## v0.1.0
+
+**Foundation**
+
+- Layers 1-4: schema validation, cost/performance, trace structure, content validation
+- Python SDK with pytest plugin
+- 4 provider adapters: OpenAI, Anthropic, Gemini, Ollama
+- PyPI + GitHub release
