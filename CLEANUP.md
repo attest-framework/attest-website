@@ -31,7 +31,7 @@ Files and directories to remove from `attest-framework/attest` after the documen
 
 ## Prerequisites Before Deletion
 
-1. Verify all content is migrated and accessible on `attest-framework.github.io/attest-website/`
+1. Verify all content is migrated and accessible on `attest-framework.github.io/`
 2. Verify `docs/redirect-index.html` is deployed or DNS redirect is in place
 3. Update any external links pointing to old docs URL
 4. Confirm GitHub Pages source for `attest` repo is no longer needed (or reconfigured)

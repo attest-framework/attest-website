@@ -91,37 +91,38 @@ classDiagram
     }
 
     class LangChainAdapter {
-        +instrument() InstrumentedAgent
-        +extract_trace() Trace
+        +capture() LangChainCallbackHandler
+        +trace Trace
     }
     class GoogleADKAdapter {
-        +instrument() InstrumentedAgent
-        +extract_trace() Trace
+        +capture_async() Trace
+        +from_events() Trace
     }
     class CrewAIAdapter {
-        +instrument() InstrumentedAgent
-        +extract_trace() Trace
+        +capture()
+        +trace_from_crew_output() Trace
     }
-    class LlamaIndexAdapter {
-        +instrument() InstrumentedAgent
-        +extract_trace() Trace
+    class LlamaIndexInstrumentationHandler {
+        +attach()
+        +detach()
+        +build_trace() Trace
     }
 
     class ManualAdapter {
-        +record_step()
-        +record_delegation()
-        +build_trace() Trace
+        +capture() Trace
+        +create_builder() TraceBuilder
     }
 
     class OTelAdapter {
         +from_spans() Trace
+        +from_otel_span_dicts() Trace
     }
 
     BaseAdapter <|-- BaseProviderAdapter
     BaseAdapter <|-- LangChainAdapter
     BaseAdapter <|-- GoogleADKAdapter
     BaseAdapter <|-- CrewAIAdapter
-    BaseAdapter <|-- LlamaIndexAdapter
+    BaseAdapter <|-- LlamaIndexInstrumentationHandler
     BaseAdapter <|-- ManualAdapter
     BaseAdapter <|-- OTelAdapter
     BaseProviderAdapter <|-- OpenAIAdapter
@@ -204,30 +205,14 @@ Framework adapters integrate with agent orchestration frameworks to capture the 
 
 ### Interface
 
-Framework adapters implement `instrument()` to wrap an agent/executor and `extract_trace()` to produce the canonical trace:
+Framework adapters subclass `BaseAdapter` and expose a framework-specific capture entry point. Each hooks into the framework's native event system, collects events into a `TraceBuilder`, and returns the canonical `Trace`:
 
-```python
-class FrameworkAdapter:
-    @property
-    def framework_name(self) -> str:
-        """Framework identifier: 'langchain', 'google-adk', etc."""
-        ...
-
-    @property
-    def supports_parallel(self) -> bool:
-        """Whether this framework can express parallel agent execution."""
-        return False
-
-    def instrument(self, agent_or_executor) -> InstrumentedAgent:
-        """Wrap agent to capture traces while preserving its API."""
-        ...
-
-    def extract_trace(self) -> Trace:
-        """Extract captured trace in Attest canonical format."""
-        ...
-```
-
-The `InstrumentedAgent` wrapper delegates all attribute access to the underlying agent via `__getattr__`, so framework-specific methods continue to work.
+| Adapter | Capture entry point | Returns |
+|---|---|---|
+| `LangChainAdapter` | `with adapter.capture() as handler:` then `adapter.trace` | `Trace` |
+| `GoogleADKAdapter` | `await adapter.capture_async(runner, user_id, session_id, message)` or `GoogleADKAdapter.from_events(events)` | `Trace` |
+| `CrewAIAdapter` | `with adapter.capture() as cap:` then `cap.trace_from_crew_output(result, crew)` | `Trace` |
+| `LlamaIndexInstrumentationHandler` | `with handler:` then `handler.build_trace(query=..., response=...)` | `Trace` |
 
 ### Framework Capture Strategies
 
@@ -242,10 +227,10 @@ Each framework exposes different hook points:
 ```python
 from attest import LangChainAdapter
 
-adapter = LangChainAdapter()
-instrumented = adapter.instrument(my_agent_executor)
-result = await instrumented.invoke({"input": "Handle this issue"})
-trace = adapter.extract_trace()
+adapter = LangChainAdapter(agent_id="my-agent")
+with adapter.capture() as handler:
+    my_agent_executor.invoke({"input": "Handle this issue"}, config={"callbacks": [handler]})
+trace = adapter.trace
 ```
 
 #### Google ADK
@@ -257,10 +242,13 @@ trace = adapter.extract_trace()
 ```python
 from attest import GoogleADKAdapter
 
-adapter = GoogleADKAdapter()
-instrumented = adapter.instrument(my_adk_agent)
-result = await instrumented.run("Analyze this incident")
-trace = adapter.extract_trace()
+adapter = GoogleADKAdapter(agent_id="incident-agent")
+trace = await adapter.capture_async(
+    runner,
+    user_id="user-1",
+    session_id="session-1",
+    message="Analyze this incident",
+)
 ```
 
 #### LlamaIndex
@@ -272,8 +260,10 @@ trace = adapter.extract_trace()
 ```python
 from attest import LlamaIndexInstrumentationHandler
 
-handler = LlamaIndexInstrumentationHandler()
-# Attach to LlamaIndex instrumentation system
+handler = LlamaIndexInstrumentationHandler(agent_id="my-workflow")
+with handler:  # attaches to the LlamaIndex instrumentation dispatcher
+    response = await my_workflow.run(user_msg="Handle this issue")
+trace = handler.build_trace(query="Handle this issue", response=str(response))
 ```
 
 #### CrewAI
@@ -285,10 +275,10 @@ handler = LlamaIndexInstrumentationHandler()
 ```python
 from attest import CrewAIAdapter
 
-adapter = CrewAIAdapter()
-instrumented = adapter.instrument(my_crew)
-result = await instrumented.kickoff()
-trace = adapter.extract_trace()
+adapter = CrewAIAdapter(agent_id="my-crew")
+with adapter.capture() as cap:
+    result = my_crew.kickoff()
+trace = cap.trace_from_crew_output(result, my_crew)
 ```
 
 ### Temporal Data Population
@@ -314,7 +304,7 @@ For custom agent implementations that do not use a supported framework. The deve
 from attest import ManualAdapter
 
 adapter = ManualAdapter(agent_id="my-agent")
-builder = adapter._create_builder()
+builder = adapter.create_builder()
 
 builder.set_input(messages=[{"role": "user", "content": "Hello"}])
 builder.add_llm_call("completion", args={"model": "gpt-4.1"}, result={"completion": "Hi there"})
@@ -331,39 +321,13 @@ Converts OpenTelemetry spans into Attest traces. Use this to test agents instrum
 ```python
 from attest import OTelAdapter
 
-adapter = OTelAdapter()
-trace = adapter.from_spans(otel_spans)
+trace = OTelAdapter.from_spans(otel_spans)
 ```
 
 The OTel adapter maps:
 - Span `startTimeUnixNano` / `endTimeUnixNano` to `started_at_ms` / `ended_at_ms`
 - Span attributes `gen_ai.agent.name` to `agent_id`
 - Span name to step name
-
-## Combining Adapters
-
-A framework adapter and a provider adapter can be used together. The framework adapter captures orchestration structure while the provider adapter captures detailed LLM call data:
-
-```python
-# Framework adapter captures orchestration structure
-lc_adapter = LangChainAdapter()
-instrumented = lc_adapter.instrument(my_executor)
-
-# Provider adapter captures detailed LLM call data
-oai_adapter = OpenAIAdapter()
-wrapped_client = oai_adapter.wrap(my_openai_client)
-
-# Execute with both adapters active
-result = await instrumented.run("Handle this issue")
-
-# Merge: framework trace provides structure, provider trace provides LLM detail
-trace = attest.merge_traces(
-    lc_adapter.extract_trace(),
-    oai_adapter.extract_trace()
-)
-```
-
-The `merge_traces` utility matches LLM call steps by temporal overlap and enriches framework-level steps with provider-level detail (full prompt text, token breakdown, model parameters).
 
 ## Implementing a Custom Adapter
 
@@ -403,9 +367,9 @@ trace = adapter.trace_from_response(response, input_messages=messages)
 Framework adapters are more involved. The key steps:
 
 1. Subclass `BaseAdapter`
-2. Implement `instrument()` to hook into the framework's event system
-3. Collect events into a `TraceBuilder` during execution
-4. Implement `extract_trace()` to return the built trace
+2. Hook into the framework's event system (a context manager such as `capture()`, or an event handler)
+3. Collect events into a `TraceBuilder` from `self._create_builder()` during execution
+4. Return `builder.build()` from a method such as `build_trace()`
 
 The LangChain adapter serves as a reference implementation (~300 lines).
 

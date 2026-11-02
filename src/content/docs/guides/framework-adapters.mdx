@@ -3,7 +3,7 @@ title: "Framework Adapters"
 description: "Capture LLM interactions as Trace objects using provider and framework adapters."
 ---
 
-Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
+Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy. Snippets that call `attest.evaluate(...)` run inside a pytest test that requests the `attest` fixture.
 
 ## Adapter Architecture
 
@@ -52,7 +52,7 @@ trace = adapter.trace_from_response(
 )
 
 result = AgentResult(trace=trace)
-expect(result).output_contains("recursion").cost_under(0.10)
+attest.evaluate(expect(result).output_contains("recursion").cost_under(0.10))
 ```
 
 ### Anthropic
@@ -113,7 +113,7 @@ trace = adapter.trace_from_response(
 ### LangChain
 
 ```bash
-uv add 'attest-ai[langchain]'
+uv add "attest-ai[langchain]==1.0.0rc1"
 ```
 
 **Context manager usage:**
@@ -130,7 +130,7 @@ with adapter.capture() as handler:
     )
 
 trace = adapter.trace
-expect(AgentResult(trace=trace)).tool_called("search_web")
+attest.evaluate(expect(AgentResult(trace=trace)).required_tools(["search_web"]))
 ```
 
 **Direct handler usage:**
@@ -158,7 +158,7 @@ trace = handler.build_trace()
 ### Google ADK
 
 ```bash
-uv add 'attest-ai[google-adk]'
+uv add "attest-ai[google-adk]==1.0.0rc1"
 ```
 
 **Async capture:**
@@ -174,7 +174,7 @@ trace = await adapter.capture_async(
     message="What is the weather in Paris?",
 )
 
-expect(AgentResult(trace=trace)).tool_called("get_weather")
+attest.evaluate(expect(AgentResult(trace=trace)).required_tools(["get_weather"]))
 ```
 
 **From pre-collected events:**
@@ -201,7 +201,7 @@ trace = GoogleADKAdapter.from_events(
 ### LlamaIndex
 
 ```bash
-uv add 'attest-ai[llamaindex]'
+uv add "attest-ai[llamaindex]==1.0.0rc1"
 ```
 
 **Context manager usage:**
@@ -217,7 +217,7 @@ trace = handler.build_trace(
     response=str(response),
 )
 
-expect(AgentResult(trace=trace)).output_contains("Paris")
+attest.evaluate(expect(AgentResult(trace=trace)).output_contains("Paris"))
 ```
 
 **Manual attach/detach:**
@@ -244,7 +244,7 @@ trace = handler.build_trace(query="...", response="...")
 ### OpenTelemetry
 
 ```bash
-uv add 'attest-ai[otel]'
+uv add "attest-ai[otel]==1.0.0rc1"
 ```
 
 **From collected spans:**
@@ -280,14 +280,14 @@ raw_trace = OpenAIAdapter(agent_id="raw-call").trace_from_response(
     response,
     input_messages=[{"role": "user", "content": "Hello"}],
 )
-expect(AgentResult(trace=raw_trace)).output_contains("Hello")
+attest.evaluate(expect(AgentResult(trace=raw_trace)).output_contains("Hello"))
 
 # Framework-level: assert on the full agent run
 lc_adapter = LangChainAdapter(agent_id="orchestrated-run")
 with lc_adapter.capture() as handler:
     agent.invoke({"input": "Hello"}, config={"callbacks": [handler]})
 
-expect(AgentResult(trace=lc_adapter.trace)).tool_called("lookup_user")
+attest.evaluate(expect(AgentResult(trace=lc_adapter.trace)).required_tools(["lookup_user"]))
 ```
 
 ## Writing a Custom Provider Adapter

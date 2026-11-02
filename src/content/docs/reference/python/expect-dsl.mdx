@@ -7,19 +7,23 @@ Fluent assertion API for testing AI agent outputs across 8 validation layers.
 
 ## Overview
 
-The `ExpectChain` class provides a fluent interface for chaining assertions. Each assertion returns the chain for further chaining.
+The `ExpectChain` class provides a fluent interface for chaining assertions. Each assertion returns the chain for further chaining. Build a chain with `expect(result)`, then evaluate it with the `attest` pytest fixture.
 
 ```python
 from attest import expect
 
-result = agent.run("question")
+def test_agent(attest):
+    result = agent.run("question")
 
-# Assertions can be chained
-(expect(result)
-  .output_contains("expected")
-  .cost_under(0.05)
-  .latency_under(2000)
-  .passes_judge("Is correct?"))
+    # Assertions can be chained
+    chain = (
+        expect(result)
+        .output_contains("expected")
+        .cost_under(0.05)
+        .latency_under(2000)
+        .passes_judge("Is correct?")
+    )
+    attest.evaluate(chain)
 ```
 
 ## Basic Usage
@@ -33,13 +37,24 @@ result = agent_function()
 chain = expect(result)
 ```
 
-The result object contains:
+`expect()` takes the `AgentResult` produced by an `@agent`-decorated function. The result carries:
 
-- `output` — The agent's text output
-- `cost` — Token cost in dollars
-- `latency_ms` — Execution time in milliseconds
 - `trace` — Full execution trace
-- `metadata` — Custom metadata
+- `total_cost` — Token cost in dollars
+- `total_duration_ms` — Execution time in milliseconds
+- `assertion_results` — Per-assertion results after evaluation
+
+### Evaluating a Chain
+
+Building a chain does not run it. Pass the chain to the `attest` fixture:
+
+| Method | Behavior |
+|--------|----------|
+| `attest.evaluate(chain)` | Evaluate and fail (or skip) the test according to the outcome |
+| `attest.inspect(chain)` | Evaluate without enforcing the outcome; returns an `AgentResult` |
+| `attest.enforce(verdict)` | Fail or skip the test from an `inspect()` result or an aggregate of trial results |
+
+Every assertion method accepts `soft=True` (keyword-only) to record a failure without failing the test.
 
 ## Assertion Layers
 
@@ -47,21 +62,21 @@ Attest assertions work across 8 layers:
 
 | Layer | Methods | What it validates |
 |-------|---------|------------------|
-| **1. Schema** | `matches_schema()` | JSON schema validation |
-| **2. Constraints** | `cost_under()`, `latency_under()` | Performance metrics |
-| **3. Trace** | `trace_contains_model()`, `trace_contains_tool()` | Execution path |
-| **4. Content** | `output_contains()`, `output_matches()` | Text content |
-| **5. Embedding** | `semantically_similar_to()` | Semantic meaning |
+| **1. Schema** | `output_matches_schema()`, `output_field_matches_schema()`, `tool_args_match_schema()`, `tool_result_matches_schema()` | JSON schema validation |
+| **2. Constraints** | `cost_under()`, `latency_under()`, `tokens_under()`, `tokens_between()`, `step_count()`, `tool_call_count()`, `constraint()` | Performance metrics |
+| **3. Trace** | `tools_called_in_order()`, `tools_called_exactly()`, `required_tools()`, `forbidden_tools()`, `no_tool_loops()`, `no_duplicate_tools()` | Execution path |
+| **4. Content** | `output_contains()`, `output_not_contains()`, `output_matches_regex()`, `output_has_all_keywords()`, `output_has_any_keyword()`, `output_forbids()`, `content_contains()` | Text content |
+| **5. Embedding** | `output_similar_to()` | Semantic meaning |
 | **6. LLM Judge** | `passes_judge()` | Domain-specific evaluation |
-| **7. Trace Tree** | `trace_tree_valid()`, `tool_calls_valid()` | Execution structure |
-| **8. Simulation** | `all_pass()`, `success_rate_above()` | Multi-agent scenarios |
+| **7. Trace Tree** | `agent_called()`, `delegation_depth()`, `agent_output_contains()`, `cross_agent_data_flow()`, `follows_transitions()`, `aggregate_cost_under()`, `aggregate_tokens_under()`, `agent_ordered_before()`, `agents_overlap()`, `agent_wall_time_under()`, `ordered_agents()` | Multi-agent execution structure |
+| **8. Plugin** | `plugin()`, `aggregate_latency_under()`, `all_tools_called()` | Custom plugin evaluations |
 
 ## Layer 1: Schema Validation
 
-Validate output structure against a schema.
+Validate output structure against a JSON schema.
 
 ```python
-expect(result).matches_schema({
+expect(result).output_matches_schema({
     "type": "object",
     "properties": {
         "name": {"type": "string"},
@@ -71,44 +86,96 @@ expect(result).matches_schema({
 })
 ```
 
+Validate a single output field, or the arguments and result of a tool call:
+
+```python
+expect(result).output_field_matches_schema("name", {"type": "string"})
+expect(result).tool_args_match_schema("search", {"type": "object", "required": ["query"]})
+expect(result).tool_result_matches_schema("search", {"type": "array"})
+```
+
+| Method | Parameters |
+|--------|------------|
+| `output_matches_schema(schema)` | `schema: dict` |
+| `output_field_matches_schema(field, schema)` | `field: str`, `schema: dict` |
+| `tool_args_match_schema(tool_name, schema)` | `tool_name: str`, `schema: dict` |
+| `tool_result_matches_schema(tool_name, schema)` | `tool_name: str`, `schema: dict` |
+
 ## Layer 2: Constraints
 
 Check performance metrics and limits.
 
-### Cost Constraints
+### Cost, Latency and Token Constraints
 
 ```python
 # Cost in dollars
 expect(result).cost_under(0.10)
-expect(result).cost_equals(0.05)
-expect(result).cost_between(0.01, 0.10)
-```
 
-### Latency Constraints
-
-```python
 # Latency in milliseconds
 expect(result).latency_under(5000)
-expect(result).latency_equals(1000)
-expect(result).latency_between(100, 5000)
+
+# Token counts
+expect(result).tokens_under(500)
+expect(result).tokens_between(100, 500)
 ```
+
+### Step and Tool Call Counts
+
+```python
+# operator is a comparison operator such as "eq", "lte" or "gte"
+expect(result).step_count("lte", 10)
+expect(result).tool_call_count("eq", 3)
+```
+
+### Generic Constraint
+
+```python
+expect(result).constraint("metadata.cost_usd", "lte", 0.10)
+expect(result).constraint("metadata.total_tokens", "between", min=100, max=500)
+```
+
+| Method | Signature |
+|--------|-----------|
+| `cost_under` | `(max_cost: float, *, soft=False)` |
+| `latency_under` | `(max_ms: int, *, soft=False)` |
+| `tokens_under` | `(max_tokens: int, *, soft=False)` |
+| `tokens_between` | `(min_tokens: int, max_tokens: int, *, soft=False)` |
+| `step_count` | `(operator: str, value: int, *, soft=False)` |
+| `tool_call_count` | `(operator: str, value: int, *, soft=False)` |
+| `constraint` | `(field: str, operator: str, value: float \| None = None, *, min=None, max=None, soft=False)` |
 
 ## Layer 3: Trace Content
 
-Inspect what models and tools the agent used.
+Inspect which tools the agent called and in what order.
 
 ```python
-# Check model usage
-expect(result).trace_contains_model("gpt-4o-mini")
-expect(result).trace_contains_model("claude-3-sonnet")
+# Tools must appear in this order
+expect(result).tools_called_in_order(["lookup_order", "process_refund"])
 
-# Check tool usage
-expect(result).trace_contains_tool("google_search")
-expect(result).trace_contains_tool("calculator")
+# Exactly this sequence of tool calls
+expect(result).tools_called_exactly(["lookup_order", "process_refund"])
 
-# Verify no unexpected tools
-expect(result).trace_contains_only_tools(["calculator", "wikipedia"])
+# Every listed tool was called
+expect(result).required_tools(["lookup_order", "process_refund"])
+
+# None of the listed tools were called
+expect(result).forbidden_tools(["delete_order", "cancel_refund"])
+
+# A tool is not called more than N times
+expect(result).no_tool_loops("search", max_repetitions=3)
+
+# No tool is called twice
+expect(result).no_duplicate_tools()
 ```
+
+| Method | Signature |
+|--------|-----------|
+| `tools_called_in_order` | `(tools: list[str], *, soft=False)` |
+| `tools_called_exactly` | `(tools: list[str], *, soft=False)` |
+| `required_tools` | `(tools: list[str], *, soft=False)` |
+| `forbidden_tools` | `(tools: list[str], *, soft=False)` |
+| `no_tool_loops` | `(tool: str, max_repetitions: int = 1, *, soft=False)` |
+| `no_duplicate_tools` | `(*, soft=False)` |
 
 ## Layer 4: Content Matching
 
@@ -123,39 +190,43 @@ expect(result).output_contains("hello")
 # Does not contain
 expect(result).output_not_contains("error")
 
-# Exact match
-expect(result).output_equals("exact output")
-
-# Case insensitive
-expect(result).output_contains("HELLO", case_sensitive=False)
+# Case sensitive (matching is case-insensitive by default)
+expect(result).output_contains("HELLO", case_sensitive=True)
 ```
 
-### Pattern Matching
+### Pattern and Keyword Matching
 
 ```python
-import re
-
 # Regex pattern
-expect(result).output_matches(r"^\d{4}-\d{2}-\d{2}$")  # Date format
+expect(result).output_matches_regex(r"^\d{4}-\d{2}-\d{2}$")  # Date format
 
-# Contains all substrings
-expect(result).output_contains_all(["hello", "world"])
+# Contains all keywords
+expect(result).output_has_all_keywords(["hello", "world"])
 
-# Contains any substring
-expect(result).output_contains_any(["yes", "correct"])
+# Contains any keyword
+expect(result).output_has_any_keyword(["yes", "correct"])
 
-# Starts/ends with
-expect(result).output_starts_with("The")
-expect(result).output_ends_with("?")
+# Contains none of the forbidden terms
+expect(result).output_forbids(["password", "ssn"])
 ```
 
-### Word Count
+### Other Targets
+
+`content_contains()` runs a substring check against any target in the result:
 
 ```python
-expect(result).word_count_equals(100)
-expect(result).word_count_between(50, 200)
-expect(result).word_count_under(500)
+expect(result).content_contains("output.message", "refund")
 ```
+
+| Method | Signature |
+|--------|-----------|
+| `output_contains` | `(value: str, *, case_sensitive=False, soft=False)` |
+| `output_not_contains` | `(value: str, *, case_sensitive=False, soft=False)` |
+| `output_matches_regex` | `(pattern: str, *, soft=False)` |
+| `output_has_all_keywords` | `(keywords: list[str], *, case_sensitive=False, soft=False)` |
+| `output_has_any_keyword` | `(keywords: list[str], *, case_sensitive=False, soft=False)` |
+| `output_forbids` | `(terms: list[str])` |
+| `content_contains` | `(target: str, value: str, *, case_sensitive=False, soft=False)` |
 
 ## Layer 5: Semantic Similarity
 
@@ -163,17 +234,18 @@ Check semantic meaning using embeddings.
 
 ```python
 # Semantically similar to reference text
-expect(result).semantically_similar_to(
+expect(result).output_similar_to(
     "This is a greeting",
     threshold=0.85
 )
-
-# Semantically different from reference
-expect(result).semantically_different_from(
-    "This is an error message",
-    threshold=0.85
-)
 ```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `reference` | `str` | required | Reference text to compare against |
+| `threshold` | `float \| str` | `0.8` | Minimum cosine similarity, or `"dynamic"` |
+| `model` | `str \| None` | `None` | Embedding model override |
+| `soft` | `bool` | `False` | Record failure without failing the test |
 
 ## Layer 6: LLM-as-Judge
 
@@ -182,43 +254,38 @@ Use an LLM to evaluate domain-specific correctness.
 ### Basic Judge
 
 ```python
-expect(result).passes_judge(
-    prompt="Is this response helpful?"
-)
+expect(result).passes_judge("Is this response helpful?")
 ```
 
-### With Custom Model
+### With Threshold and Model
 
 ```python
 expect(result).passes_judge(
-    prompt="Is the math correct?",
-    model="gpt-4o",
-    scoring="binary"  # binary, scale_0_10, or enum
+    "Is the math correct?",
+    threshold=0.9,
+    model="gpt-4.1",
 )
-```
-
-### Multiple Judges
-
-```python
-expect(result).passes_judges([
-    ("Is this helpful?", "gpt-4o-mini"),
-    ("Is this accurate?", "gpt-4o"),
-])
 ```
 
 ### Judge with Rubric
 
+`rubric` names a rubric registered with the engine; the default is `"default"`.
+
 ```python
 expect(result).passes_judge(
-    prompt="Grade this response",
-    rubric={
-        "clarity": "Is the explanation clear?",
-        "accuracy": "Are the facts correct?",
-        "completeness": "Does it answer fully?"
-    },
-    threshold=0.8
+    "Grade this response",
+    rubric="default",
+    threshold=0.8,
 )
 ```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `criteria` | `str` | required | What the judge evaluates |
+| `rubric` | `str` | `"default"` | Rubric name |
+| `threshold` | `float \| str` | `0.8` | Minimum passing score, or `"dynamic"` |
+| `model` | `str \| None` | `None` | Judge model override |
+| `soft` | `bool` | `False` | Record failure without failing the test |
 
 ### Dynamic Thresholds (v0.6.0+)
 
@@ -240,93 +307,76 @@ Only `"dynamic"` and floats (`0.0`–`1.0`) are accepted. Other string values ra
 expect(result).passes_judge("is polite", threshold="bad")  # ValueError
 ```
 
-See also [`AttestClient.query_drift()`](/reference/python/client#query_drift) to inspect the drift report for a specific assertion.
+See also the [Drift Detection guide](/guides/drift-detection/) and `AttestClient.query_drift(assertion_id, window_size=50)`, which returns a `DriftReport` for a specific assertion.
 
 ## Layer 7: Trace Tree Validation
 
-Validate the structure of the execution trace.
+Validate the structure of a multi-agent execution trace.
 
 ```python
-# Verify trace structure is valid
-expect(result).trace_tree_valid()
+# An agent was invoked
+expect(result).agent_called("researcher")
 
-# Verify specific tool calls
-expect(result).tool_calls_valid()
+# Delegation depth stays bounded
+expect(result).delegation_depth(3)
 
-# Check tool call count
-expect(result).tool_call_count_equals(3)
-expect(result).tool_call_count_between(1, 5)
+# Output of a specific agent
+expect(result).agent_output_contains("researcher", "findings")
 
-# Verify no infinite loops
-expect(result).trace_depth_under(10)
+# Data flows from one agent to another
+expect(result).cross_agent_data_flow("researcher", "writer", "summary")
+
+# Delegations follow the allowed transitions
+expect(result).follows_transitions([("planner", "researcher"), ("researcher", "writer")])
+
+# Aggregate budgets across all agents
+expect(result).aggregate_cost_under(0.50)
+expect(result).aggregate_tokens_under(5000)
+
+# Ordering and concurrency
+expect(result).agent_ordered_before("planner", "writer")
+expect(result).agents_overlap("researcher", "fact_checker")
+expect(result).agent_wall_time_under("researcher", 3000)
+expect(result).ordered_agents([["planner"], ["researcher", "fact_checker"], ["writer"]])
 ```
 
-## Layer 8: Simulation Results
-
-Validate multi-agent scenario results.
-
-```python
-from attest import simulate
-
-scenario = simulate.scenario()
-scenario.add_agent(agent1)
-scenario.add_agent(agent2)
-results = scenario.run(repeat=5)
-
-# All agents passed
-expect(results).all_pass()
-
-# Success rate
-expect(results).success_rate_above(0.95)
-expect(results).success_rate_equals(1.0)
-
-# Average metrics
-expect(results).avg_cost_under(0.10)
-expect(results).avg_latency_under(2000)
-
-# Agent-specific
-expect(results).agent_success_rate("agent_1", above=0.90)
-```
+| Method | Signature |
+|--------|-----------|
+| `agent_called` | `(agent_id: str, *, soft=False)` |
+| `delegation_depth` | `(max_depth: int, *, soft=False)` |
+| `agent_output_contains` | `(agent_id: str, value: str, *, case_sensitive=False, soft=False)` |
+| `cross_agent_data_flow` | `(from_agent: str, to_agent: str, field: str, *, soft=False)` |
+| `follows_transitions` | `(transitions: list[tuple[str, str]], *, soft=False)` |
+| `aggregate_cost_under` | `(max_cost: float, *, soft=False)` |
+| `aggregate_tokens_under` | `(max_tokens: int, *, soft=False)` |
+| `agent_ordered_before` | `(agent_a: str, agent_b: str, *, soft=False)` |
+| `agents_overlap` | `(agent_a: str, agent_b: str, *, soft=False)` |
+| `agent_wall_time_under` | `(agent_id: str, max_ms: int, *, soft=False)` |
+| `ordered_agents` | `(groups: list[list[str]], *, soft=False)` |
 
 ## Soft Failures
 
-Collect all failures instead of stopping at the first one.
+Every assertion accepts `soft=True`. A soft failure is recorded in the results but does not fail the test, so the remaining assertions still report.
 
 ```python
-from attest import soft_fail
-
-with soft_fail():
-    expect(result).output_contains("hello")  # Failure recorded
-    expect(result).cost_under(0.01)          # Failure recorded
-    expect(result).passes_judge("...")       # Still executes
-    # After context, all 3 failures reported
+def test_agent(attest):
+    result = agent_function()
+    chain = (
+        expect(result)
+        .output_contains("hello", soft=True)  # Failure recorded, test continues
+        .cost_under(0.01, soft=True)          # Failure recorded, test continues
+        .passes_judge("...")                  # Hard assertion
+    )
+    attest.evaluate(chain)
 ```
+
+Use `attest.inspect(chain)` to evaluate without enforcing the outcome, then `attest.enforce(verdict)` to apply it. This is the pattern for trial loops where only the aggregate verdict should decide the test.
 
 ## Error Messages
 
-When an assertion fails, you get detailed error information:
-
-```
-✗ Assertion failed: output_contains("goodbye")
-  Expected output to contain: goodbye
-  Actual output: hello world
-  Suggestion: Check if the prompt was clear
-```
+When an assertion fails, the `attest` fixture reports the failing assertions with diagnostics from the engine, including the assertion type, the expected condition and the actual value.
 
 ## Common Patterns
-
-### Soft Failures
-
-Continue testing after failures to collect all issues:
-
-```python
-from attest import soft_fail
-
-with soft_fail():
-    expect(result).output_contains("hello")  # May fail
-    expect(result).cost_under(0.01)          # May fail
-    # Both will run, collecting all failures
-```
 
 ### Custom Judges
 
@@ -335,28 +385,15 @@ Use LLM evaluation for semantic correctness:
 ```python
 (expect(result)
   .passes_judge(
-    prompt="Is the response grammatically correct?",
-    model="gpt-4o",
-    scoring="binary"  # binary, scale_0_10, or enum
+    "Is the response grammatically correct?",
+    threshold=0.8,
+    model="gpt-4.1",
   ))
 ```
 
 ### Framework Integration
 
-Test agents built with popular frameworks:
-
-```python
-from attest.adapters import langchain, crewai, llamaindex
-
-# LangChain agents
-agent = langchain.create_agent(...)
-
-# CrewAI tasks
-task = crewai.create_task(...)
-
-# LlamaIndex query engines
-engine = llamaindex.create_query_engine(...)
-```
+Capture traces from popular frameworks with the adapters. See the [Python Adapters Reference](/reference/python/adapters/) for the adapter classes and usage.
 
 ## Layer 8: Plugin Assertions
 
@@ -372,8 +409,8 @@ expect(result).plugin("my_plugin", {"threshold": 0.9})
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `plugin_name` | `str` | Registered plugin name |
-| `config` | `dict` | Plugin-specific configuration |
+| `plugin_id` | `str` | Registered plugin name |
+| `config` | `dict \| None` | Plugin-specific configuration (default `None`) |
 
 ### `aggregate_latency_under()`
 
