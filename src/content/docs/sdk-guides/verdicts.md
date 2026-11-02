@@ -3,7 +3,7 @@ title: "Verdicts: pass, fail, skip"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/verdicts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.0.0-rc.1 (0b2283542b288b6e1ef54af0c37b5e77339921f6) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest reports one of four statuses for every assertion you request, and turns them into a test outcome only after the whole batch has run.
 
@@ -23,6 +23,8 @@ Attest reports one of four statuses for every assertion you request, and turns t
 | `simulation` | `ATTEST_SIMULATION=1`: layers 1–4 run for real, layers 5–6 are not called. |
 | `missing_evidence` | The trace does not record the checked field, for example `metadata.cost_usd` unset. |
 | `short_circuited` | A layer 5–6 assertion did not run because a layer 1–4 assertion in the same batch hard-failed. |
+| `budget_exhausted` | An embedding or judge call could not reserve its cost or call count against the session budget (`ATTEST_MAX_JUDGE_CALLS`, `ATTEST_BUDGET_USD`) or the test's budget, so it was not sent. |
+| `judge_abstained` | The judge answered `{"abstain": true, "reason": ...}`: the output lacks the evidence the rubric needs. The reason is in the explanation. |
 
 A `not_evaluated` assertion is never a pass and never a `broken_code` failure.
 
@@ -86,6 +88,16 @@ it("refund", async () => {
 # attest.policy.yaml
 not_evaluated: block   # exit 1 instead of 2
 ```
+
+With `--baseline <tag>`, a `regression` rule compares each assertion's pass rate with the pinned baseline using a Wilson interval and prints `verdict` (`pass`, `regressed` or `inconclusive`) with per-assertion `trials` in the JSON output. `regressed` blocks (exit 1, or `severity: warn`), `inconclusive` warns (exit 2):
+
+```yaml
+regression:
+  confidence: 0.95   # two-sided Wilson interval (default)
+  tolerance: 0.05    # allowed drop below the baseline pass rate (default)
+```
+
+An assertion regresses when the interval's upper bound is below the baseline pass rate minus the tolerance, passes when its lower bound is at or above that line, and is inconclusive when the interval straddles it. Pass rates exclude `not_evaluated` runs. The rule applies only to assertions with at least 2 runs in both the report and the baseline; single runs keep the status comparison of `block_on_regression`. An assertion run as trials that cannot be compared (baseline pinned from one run, or never evaluated on one side) is reported `inconclusive` and stays under `block_on_regression`. `attest baseline pin` stores each assertion's passes and evaluated runs, folding the rows of fixed-N trials into one entry; baselines pinned by earlier versions count as one run each.
 
 ## Simulation mode
 
