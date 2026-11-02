@@ -7,7 +7,6 @@ const hasSyncedGuides = existsSync(new URL("./src/content/docs/sdk-guides", impo
 
 export default defineConfig({
   site: "https://attest-framework.github.io",
-  base: "/attest-website",
   integrations: [
     starlight({
       title: "Attest Framework",
@@ -40,7 +39,7 @@ export default defineConfig({
         "./src/styles/custom.css",
       ],
       editLink: {
-        baseUrl: "https://github.com/attest-framework/attest-website/edit/main/",
+        baseUrl: "https://github.com/attest-framework/attest-framework.github.io/edit/main/",
       },
       sidebar: [
         {

@@ -1,8 +1,8 @@
-# attest-website
+# attest-framework.github.io
 
 Documentation site for the [Attest Framework](https://github.com/attest-framework/attest) — test your AI agents like you test your code.
 
-**Live site:** [attest-framework.github.io/attest-website](https://attest-framework.github.io/attest-website/)
+**Live site:** [attest-framework.github.io](https://attest-framework.github.io/)
 
 ## Stack
 
