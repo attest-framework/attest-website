@@ -3,7 +3,7 @@ title: "Adapter Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/framework-adapters.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0-rc.1 (0b2283542b288b6e1ef54af0c37b5e77339921f6) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
 
@@ -19,7 +19,7 @@ BaseAdapter                          ← shared utilities
 ├── GoogleADKAdapter                 ← framework: ADK event stream
 ├── LangChainCallbackHandler         ← framework: LangChain callbacks
 ├── LlamaIndexInstrumentationHandler ← framework: LlamaIndex dispatcher
-├── OTelAdapter                      ← framework: OpenTelemetry spans
+├── OTelAdapter                      ← framework: OpenTelemetry spans (engine conversion)
 └── ManualAdapter                    ← utility: builder function
 ```
 
@@ -113,7 +113,7 @@ trace = adapter.trace_from_response(
 ### LangChain
 
 ```bash
-uv add 'attest-ai[langchain]'
+uv add 'attest-ai[langchain]>=1.0.0rc1'
 ```
 
 **Context manager usage:**
@@ -158,7 +158,7 @@ trace = handler.build_trace()
 ### Google ADK
 
 ```bash
-uv add 'attest-ai[google-adk]'
+uv add 'attest-ai[google-adk]>=1.0.0rc1'
 ```
 
 **Async capture:**
@@ -201,7 +201,7 @@ trace = GoogleADKAdapter.from_events(
 ### LlamaIndex
 
 ```bash
-uv add 'attest-ai[llamaindex]'
+uv add 'attest-ai[llamaindex]>=1.0.0rc1'
 ```
 
 **Context manager usage:**
@@ -244,29 +244,36 @@ trace = handler.build_trace(query="...", response="...")
 ### OpenTelemetry
 
 ```bash
-uv add 'attest-ai[otel]'
+uv add 'attest-ai[otel]>=1.0.0rc1'
 ```
 
-**From collected spans:**
+**From collected spans or an OTLP/JSON export:**
 
 ```python
+from pathlib import Path
+
 from attest import OTelAdapter
 
-trace = OTelAdapter.from_spans(
-    spans=collected_spans,
-    agent_id="my-agent",
-)
+# finished opentelemetry-sdk spans of one trace, e.g. from an InMemorySpanExporter
+trace = OTelAdapter.from_spans(collected_spans, agent_id="my-agent")
+
+# an OTLP/JSON export: a pathlib.Path, JSON text (str), bytes or a parsed mapping
+trace = OTelAdapter.from_otlp(Path("incident.otlp.json"))
 ```
 
-**Span classification:**
+TypeScript (`@attest-ai/core`) has the same adapter; both methods are async because they resolve the engine:
 
-| Span attribute                                                  | Classified as    |
-| --------------------------------------------------------------- | ---------------- |
-| `gen_ai.operation.name` == "chat" / "completion"                | `llm_call` step  |
-| `gen_ai.operation.name` == "tool" or `gen_ai.tool.name` present | `tool_call` step |
-| Other spans                                                     | Skipped          |
+```typescript
+import { readFileSync } from "node:fs";
+import { OTelAdapter } from "@attest-ai/core";
 
-The adapter reads `gen_ai.*` semantic conventions for model, tokens, completion text, and tool parameters.
+const trace = await OTelAdapter.fromSpans(exporter.getFinishedSpans(), "my-agent");
+const fromExport = await OTelAdapter.fromOtlp(readFileSync("incident.otlp.json", "utf8"));
+```
+
+The conversion runs in the engine (`attest-engine trace convert`), the same mapping the TypeScript adapter and `attest trace check` use, so every SDK produces the same trace v2 for the same spans. It follows the current OpenTelemetry GenAI semantic conventions: `chat`, `text_completion`, `generate_content` and `embeddings` spans become `llm_call` steps, `execute_tool` spans `tool_call` steps with `args` and `result` from `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result`, nested `invoke_agent` spans `agent_call` steps with handoffs, and top-level `invoke_agent` spans conversation turns. Spans without GenAI attributes are skipped. Malformed input raises `attest.exceptions.OTLPConversionError` (TypeScript: rejects with `OTLPConversionError`) with the engine's message. The full mapping, and `attest trace check` for integrity and coverage, are in [trace-check.md](/sdk-guides/trace-check/).
+
+`attest.adapters.otel.to_otel_spans(trace)` exports a trace as OTLP-shaped span dicts under an `invoke_agent` root; `OTelAdapter.from_otel_span_dicts` converts them back.
 
 ## Combining Provider and Framework Adapters
 
