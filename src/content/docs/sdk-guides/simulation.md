@@ -117,7 +117,7 @@ repeat_result.outcome()      # "fail" | "skip" | "pass" over all runs
 repeat_result.results        # list[AgentResult]
 ```
 
-Build each trial's result with `attest.inspect(chain)`, which never fails or skips the test, and enforce only the aggregate with `attest.enforce(repeat_result)` (see [Verdicts](verdicts.md)).
+Build each trial's result with `attest.inspect(chain)`, which never fails or skips the test, and enforce only the aggregate with `attest.enforce(repeat_result)` (see [Verdicts](/sdk-guides/verdicts/)).
 
 ### RepeatResult Properties
 

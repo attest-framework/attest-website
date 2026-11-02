@@ -11,9 +11,7 @@
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import remarkGfm from "remark-gfm";
-import remarkParse from "remark-parse";
-import { unified } from "unified";
+import { markdownParser, rewriteGuideLinks } from "./guide-links.mjs";
 
 const TAG_PATTERN = /^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -25,7 +23,6 @@ const ATTEST_EDIT_BASE = "https://github.com/attest-framework/attest/edit/main/d
 const websiteRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const changelogTarget = join(websiteRoot, "src/synced/CHANGELOG.md");
 const guidesTarget = join(websiteRoot, "src/content/docs/sdk-guides");
-const markdownParser = unified().use(remarkParse).use(remarkGfm);
 
 function fail(message) {
   console.error(`sync-release: ${message}`);
@@ -115,6 +112,14 @@ for (const entry of entries) {
   if (!guides.includes(entry)) console.log(`skipped non-guide entry docs/guides/${entry.name}`);
 }
 if (guides.length === 0) fail(`no *.md guides in ${guidesSource}`);
+const guideSlugs = new Set(guides.map((entry) => entry.name.slice(0, -".md".length)));
+
+function withSiteLinks(markdown, guideBase, label) {
+  const rewritten = rewriteGuideLinks(markdown, guideSlugs, guideBase);
+  if (rewritten.problems.length > 0) fail(`${label}:\n  ${rewritten.problems.join("\n  ")}`);
+  return rewritten.markdown;
+}
+const changelogBody = withSiteLinks(changelog.body, "docs/guides/", "CHANGELOG.md");
 
 const guideOutputs = guides.map((entry) => {
   const sourcePath = `docs/guides/${entry.name}`;
@@ -123,6 +128,7 @@ const guideOutputs = guides.map((entry) => {
   }
   const guide = splitTitle(readRegularFile(join(guidesSource, entry.name), sourcePath), sourcePath);
   assertSafeMarkdown(guide.body, sourcePath);
+  const body = withSiteLinks(guide.body, "", sourcePath);
   const frontmatter = [
     "---",
     `title: ${JSON.stringify(guide.title)}`,
@@ -132,12 +138,12 @@ const guideOutputs = guides.map((entry) => {
   ].join("\n");
   return {
     target: join(guidesTarget, entry.name),
-    content: `${frontmatter}\n${provenance(sourcePath, tag, sha)}\n${guide.body}`,
+    content: `${frontmatter}\n${provenance(sourcePath, tag, sha)}\n${body}`,
   };
 });
 
 mkdirSync(dirname(changelogTarget), { recursive: true });
-writeFileSync(changelogTarget, `${provenance("CHANGELOG.md", tag, sha)}\n${changelog.body}`);
+writeFileSync(changelogTarget, `${provenance("CHANGELOG.md", tag, sha)}\n${changelogBody}`);
 console.log(`wrote ${changelogTarget}`);
 
 rmSync(guidesTarget, { recursive: true, force: true });
