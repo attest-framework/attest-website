@@ -10,20 +10,20 @@ import testAgentPy from "../../../examples/quickstart/test_agent.py?raw";
 
 ## Installation
 
-Install the `attest-ai` package and pytest. Attest 1.0.0-rc.1 is a pre-release, so pin it explicitly:
+Install the `attest-ai` package and pytest. Attest 1.0.0-rc.1 is a pre-release and an unconstrained install resolves to the older stable release, so set a version floor:
 
 ```bash
-uv add "attest-ai==1.0.0rc1" pytest
+uv add "attest-ai>=1.0.0rc1" pytest
 ```
 
 For framework-specific adapters, install extras:
 
 ```bash
-uv add "attest-ai[openai]==1.0.0rc1"       # OpenAI adapter
-uv add "attest-ai[langchain]==1.0.0rc1"    # LangChain support
-uv add "attest-ai[llamaindex]==1.0.0rc1"   # LlamaIndex support
-uv add "attest-ai[google-adk]==1.0.0rc1"   # Google ADK support
-uv add "attest-ai[otel]==1.0.0rc1"         # OpenTelemetry support
+uv add "attest-ai[openai]>=1.0.0rc1"       # OpenAI adapter
+uv add "attest-ai[langchain]>=1.0.0rc1"    # LangChain support
+uv add "attest-ai[llamaindex]>=1.0.0rc1"   # LlamaIndex support
+uv add "attest-ai[google-adk]>=1.0.0rc1"   # Google ADK support
+uv add "attest-ai[otel]>=1.0.0rc1"         # OpenTelemetry support
 ```
 
 ## Create an Agent

@@ -9,10 +9,10 @@ import agentTestTs from "../../../examples/quickstart-ts/agent.test.ts?raw";
 
 ## Installation
 
-Install the core SDK, the Vitest integration and Vitest. Attest 1.0.0-rc.1 is a pre-release, so pin it explicitly:
+Install the core SDK, the Vitest integration and Vitest. Attest 1.0.0-rc.1 is a pre-release and an unconstrained install resolves to the older stable release, so set a version floor:
 
 ```bash
-pnpm add -D @attest-ai/core@1.0.0-rc.1 @attest-ai/vitest@1.0.0-rc.1 vitest
+npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
 ```
 
 ## Create an Agent
@@ -30,7 +30,7 @@ Build the assertion chain with `attestExpect` from `@attest-ai/core` and evaluat
 Run with:
 
 ```bash
-pnpm exec vitest run
+npx vitest run
 ```
 
 `evaluate(chain)` throws on a hard failure and skips the test when an assertion could not be evaluated. Use `inspect(chain)` to get the results without enforcing them.
