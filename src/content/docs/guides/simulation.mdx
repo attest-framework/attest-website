@@ -58,7 +58,8 @@ result = test_multi_turn_support()
 
 result.config     # ScenarioConfig used
 result.results    # list[AgentResult] — one per turn
-result.passed     # True if all turns passed
+result.passed     # True if the aggregate outcome() is pass (soft failures allowed)
+result.outcome()  # "fail" | "skip" | "pass" over all turns
 ```
 
 ### Multi-Turn Flow
@@ -81,6 +82,10 @@ assert len(scenario_result.results) == 3
 Mock tools registered via `mock_tools` are activated as a context variable during scenario execution. When `TraceBuilder.add_tool_call()` is called with a tool name that matches a registered mock, the mock function is invoked instead:
 
 ```python
+from attest import AgentResult
+from attest.simulation import scenario
+from attest.trace import TraceBuilder
+
 @scenario(mock_tools={
     "lookup_order": lambda order_id: {"status": "delivered", "total": 89.99},
     "process_refund": lambda order_id: {"refund_id": "RFD-001"},
@@ -102,24 +107,30 @@ from attest.simulation import repeat
 
 @repeat(n=10)
 def test_agent_reliability():
-    result = my_agent.run("Process refund for ORD-123")
+    result = my_agent.run(user_message="Process refund for ORD-123")
     return result
 
 repeat_result = test_agent_reliability()
-repeat_result.count       # 10
-repeat_result.pass_rate   # 0.0 to 1.0
-repeat_result.all_passed  # True if all 10 passed
-repeat_result.results     # list[AgentResult]
+repeat_result.count          # 10
+repeat_result.pass_rate      # passing / evaluated runs, or None
+repeat_result.not_evaluated  # runs skipped as not evaluated
+repeat_result.all_passed     # True if all 10 passed
+repeat_result.outcome()      # "fail" | "skip" | "pass" over all runs
+repeat_result.results        # list[AgentResult]
 ```
+
+Build each trial's result with `attest.inspect(chain)`, which never fails or skips the test, and enforce only the aggregate with `attest.enforce(repeat_result)` (see [Verdicts](/sdk-guides/verdicts/)).
 
 ### RepeatResult Properties
 
-| Property     | Type                | Description                        |
-| ------------ | ------------------- | ---------------------------------- |
-| `count`      | `int`               | Number of runs executed            |
-| `pass_rate`  | `float`             | Fraction of passing runs (0.0-1.0) |
-| `all_passed` | `bool`              | True if every run passed           |
-| `results`    | `list[AgentResult]` | Individual results from each run   |
+| Property        | Type                | Description                                                           |
+| --------------- | ------------------- | --------------------------------------------------------------------- |
+| `count`         | `int`               | Number of runs executed                                               |
+| `pass_rate`     | `float \| None`     | Passing / evaluated runs; not-evaluated runs excluded; `None` if none |
+| `not_evaluated` | `int`               | Runs whose outcome is skip (an assertion was not evaluated)           |
+| `all_passed`    | `bool`              | True if every run's outcome is pass (soft failures allowed)           |
+| `outcome()`     | `str`               | Any failing run: `fail`; else any skipped run: `skip`; else `pass`    |
+| `results`       | `list[AgentResult]` | Individual results from each run                                      |
 
 ## `@mock_tool` Decorator
 
@@ -147,7 +158,7 @@ registry.register("fetch_url", lambda url: {"content": "mock content"})
 with registry:
     # All TraceBuilder.add_tool_call() invocations within this block
     # use the registered mocks
-    result = my_agent.run("Search for testing frameworks")
+    result = my_agent.run(user_message="Search for testing frameworks")
 ```
 
 ## `@fault_inject` Decorator
@@ -252,7 +263,7 @@ def test_adversarial_resilience(persona):
 
 # Each of 5 repeats runs the 3-turn adversarial scenario
 repeat_result = test_adversarial_resilience()
-assert repeat_result.pass_rate >= 0.8
+assert repeat_result.pass_rate is not None and repeat_result.pass_rate >= 0.8
 ```
 
 ## Fault Injection Patterns
@@ -268,7 +279,7 @@ def unreliable_search(q: str) -> dict:
 
 @scenario(mock_tools={"search_web": unreliable_search})
 def test_agent_handles_search_failures():
-    result = my_agent.run("Find information about testing")
+    result = my_agent.run(user_message="Find information about testing")
     return result
 ```
 
@@ -279,7 +290,7 @@ Use `fault_error_rate` and `fault_latency_jitter_ms` on `@scenario` to inject fa
 ```python
 @scenario(fault_error_rate=0.1, fault_latency_jitter_ms=300, max_turns=10, seed=42)
 def test_multi_turn_resilience():
-    result = my_agent.run("Long conversation")
+    result = my_agent.run(user_message="Long conversation")
     return result
 ```
 
@@ -299,13 +310,15 @@ def test_multi_turn_resilience():
 from attest import expect
 from attest.simulation import scenario, repeat, ADVERSARIAL_USER
 
-@repeat(n=10)
-@scenario(persona=ADVERSARIAL_USER, max_turns=3, seed=42)
-def test_adversarial_with_assertions(persona):
-    result = my_agent.run(input=persona.system_prompt)
-    expect(result).output_not_contains("error").cost_under(0.05)
-    return result
+def test_adversarial_with_assertions(attest):
+    @repeat(n=10)
+    @scenario(persona=ADVERSARIAL_USER, max_turns=3, seed=42)
+    def trial(persona):
+        result = my_agent.run(input=persona.system_prompt)
+        chain = expect(result).output_not_contains("error").cost_under(0.05)
+        return attest.inspect(chain)
 
-repeat_result = test_adversarial_with_assertions()
-assert repeat_result.pass_rate >= 0.9
+    repeat_result = trial()
+    assert repeat_result.pass_rate is not None and repeat_result.pass_rate >= 0.9
+    attest.enforce(repeat_result)
 ```

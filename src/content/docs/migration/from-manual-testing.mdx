@@ -32,12 +32,16 @@ Manual QA is slow and error-prone. Attest lets you encode QA checklists as execu
 ```python
 from attest import expect
 
-result = agent.run("question")
+def test_answer_text(attest):
+    result = agent.run("question")
 
-(expect(result)
-  .output_contains("answer")
-  .output_not_contains("error")
-  .output_not_contains(""))
+    chain = (
+        expect(result)
+        .output_contains("answer")
+        .output_not_contains("error")
+        .output_matches_regex(r"\S")  # not empty
+    )
+    attest.evaluate(chain)
 ```
 
 ### Check 2: Response Structure
@@ -54,19 +58,19 @@ result = agent.run("question")
 
 ```python
 from attest import expect
-import json
 
-result = agent.run("Generate user")
+def test_user_structure(attest):
+    result = agent.run("Generate user")
 
-(expect(result)
-  .matches_schema({
-    "type": "object",
-    "properties": {
-      "name": {"type": "string"},
-      "email": {"type": "string"}
-    },
-    "required": ["name", "email"]
-  }))
+    chain = expect(result).output_matches_schema({
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "email": {"type": "string"}
+        },
+        "required": ["name", "email"]
+    })
+    attest.evaluate(chain)
 ```
 
 ### Check 3: Performance Metrics
@@ -76,7 +80,6 @@ result = agent.run("Generate user")
 ```
 [ ] Response completes in under 5 seconds
 [ ] API costs less than $0.10
-[ ] Uses correct model/provider
 ```
 
 #### Attest Assertions
@@ -84,12 +87,11 @@ result = agent.run("Generate user")
 ```python
 from attest import expect
 
-result = agent.run("question")
+def test_performance_limits(attest):
+    result = agent.run("question")
 
-(expect(result)
-  .latency_under(5000)
-  .cost_under(0.10)
-  .trace_contains_model("gpt-4o-mini"))
+    chain = expect(result).latency_under(5000).cost_under(0.10)
+    attest.evaluate(chain)
 ```
 
 ### Check 4: Semantic Correctness
@@ -107,12 +109,16 @@ result = agent.run("question")
 ```python
 from attest import expect
 
-result = agent.run("question")
+def test_semantic_quality(attest):
+    result = agent.run("question")
 
-(expect(result)
-  .semantically_similar_to("expected answer", threshold=0.85)
-  .passes_judge("Is this grammatically correct?")
-  .passes_judge("Is this coherent and helpful?"))
+    chain = (
+        expect(result)
+        .output_similar_to("expected answer", threshold=0.85)
+        .passes_judge("Is this grammatically correct?")
+        .passes_judge("Is this coherent and helpful?")
+    )
+    attest.evaluate(chain)
 ```
 
 ## Checklist to Test Suite Conversion
@@ -130,7 +136,6 @@ Response Quality:
 Performance:
   [ ] Completes in &lt;5s
   [ ] Costs <$0.10
-  [ ] Uses GPT-4o-mini
 
 Semantic:
   [ ] Answers the actual question
@@ -145,24 +150,24 @@ Convert each check to an assertion:
 ```python
 from attest import expect
 
-result = agent.run("What is 2+2?")
+def test_math_checklist(attest):
+    result = agent.run("What is 2+2?")
 
-# Response Quality
-(expect(result)
-  .output_contains("4")
-  .output_not_contains("error")
-  .output_starts_with(result.output[0].upper()))
-
-# Performance
-expect(result).latency_under(5000)
-expect(result).cost_under(0.10)
-expect(result).trace_contains_model("gpt-4o-mini")
-
-# Semantic
-(expect(result)
-  .semantically_similar_to("The answer is 4")
-  .passes_judge("Is this grammatically correct?")
-  .passes_judge("Does this sound professional?"))
+    chain = (
+        expect(result)
+        # Response Quality
+        .output_contains("4")
+        .output_not_contains("error")
+        .output_matches_regex(r"^[A-Z]")
+        # Performance
+        .latency_under(5000)
+        .cost_under(0.10)
+        # Semantic
+        .output_similar_to("The answer is 4")
+        .passes_judge("Is this grammatically correct?")
+        .passes_judge("Does this sound professional?")
+    )
+    attest.evaluate(chain)
 ```
 
 ### Step 3: Organize into Test Cases
@@ -170,31 +175,37 @@ expect(result).trace_contains_model("gpt-4o-mini")
 Group assertions by scenario:
 
 ```python
-def test_math_question():
+def test_math_question(attest):
     """Agent should answer math questions."""
     result = agent.run("What is 2+2?")
 
-    (expect(result)
-      .output_contains("4")
-      .output_not_contains("error")
-      .latency_under(5000)
-      .cost_under(0.10)
-      .passes_judge("Is the answer correct?"))
+    chain = (
+        expect(result)
+        .output_contains("4")
+        .output_not_contains("error")
+        .latency_under(5000)
+        .cost_under(0.10)
+        .passes_judge("Is the answer correct?")
+    )
+    attest.evaluate(chain)
 
-def test_history_question():
+def test_history_question(attest):
     """Agent should answer history questions."""
     result = agent.run("When was the Declaration of Independence?")
 
-    (expect(result)
-      .output_contains("1776")
-      .passes_judge("Is this historically accurate?")
-      .semantically_similar_to("July 4, 1776"))
+    chain = (
+        expect(result)
+        .output_contains("1776")
+        .passes_judge("Is this historically accurate?")
+        .output_similar_to("July 4, 1776")
+    )
+    attest.evaluate(chain)
 ```
 
 ### Step 4: Run Tests Locally
 
 ```bash
-python -m pytest test_agent.py -v
+uv run pytest test_agent.py -v
 ```
 
 ### Step 5: Integrate into CI/CD
@@ -211,9 +222,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-      - run: pip install attest-ai pytest
-      - run: pytest test_agent.py
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run pytest test_agent.py
 ```
 
 ## Complete Example
@@ -244,46 +255,48 @@ def agent():
     from app import create_agent
     return create_agent()
 
-def test_factual_questions(agent):
+@pytest.mark.parametrize("question,expected", [
+    ("What is the capital of France?", "Paris"),
+    ("When was WWII?", "1939-1945"),
+    ("Who is the President of the US?", "Biden")
+])
+def test_factual_questions(attest, agent, question, expected):
     """Test agent on factual questions."""
-    test_cases = [
-        ("What is the capital of France?", "Paris"),
-        ("When was WWII?", "1939-1945"),
-        ("Who is the President of the US?", "Biden")
-    ]
+    result = agent.run(question)
 
-    for question, expected in test_cases:
-        result = agent.run(question)
+    chain = (
+        expect(result)
+        .output_contains(expected)
+        .output_not_contains("error")
+        .latency_under(5000)
+        .cost_under(0.10)
+        .passes_judge("Is this factually correct?")
+    )
+    attest.evaluate(chain)
 
-        (expect(result)
-          .output_contains(expected)
-          .output_not_contains("error")
-          .latency_under(5000)
-          .cost_under(0.10)
-          .passes_judge("Is this factually correct?"))
-
-def test_response_quality(agent):
+def test_response_quality(attest, agent):
     """Test response quality metrics."""
     result = agent.run("What is 2+2?")
 
-    (expect(result)
-      .output_not_contains("")
-      .passes_judge("Is this grammatically correct?")
-      .passes_judge("Is this professionally written?"))
+    chain = (
+        expect(result)
+        .output_matches_regex(r"\S")
+        .passes_judge("Is this grammatically correct?")
+        .passes_judge("Is this professionally written?")
+    )
+    attest.evaluate(chain)
 
-def test_performance(agent):
+def test_performance(attest, agent):
     """Test performance constraints."""
     result = agent.run("complex question")
 
-    (expect(result)
-      .latency_under(5000)
-      .cost_under(0.25))
+    attest.evaluate(expect(result).latency_under(5000).cost_under(0.25))
 ```
 
 Run it:
 
 ```bash
-pytest test_agent.py -v
+uv run pytest test_agent.py -v
 ```
 
 Output:
@@ -306,7 +319,7 @@ Same checks every run, no human error:
 
 ```python
 # This always passes or fails consistently
-expect(result).output_contains("hello")
+attest.evaluate(expect(result).output_contains("hello"))
 ```
 
 ### 2. Speed
@@ -315,7 +328,7 @@ Run full QA in seconds instead of hours:
 
 ```bash
 # Runs 100 test cases in &lt;60s
-pytest test_agent.py --tb=short
+uv run pytest test_agent.py --tb=short
 ```
 
 ### 3. Regression Detection
@@ -324,8 +337,12 @@ Fail immediately if quality drops:
 
 ```python
 # Catches unexpected changes
-expect(result).cost_under(0.10)  # Fails if cost increased
-expect(result).latency_under(5000)  # Fails if agent is slow
+chain = (
+    expect(result)
+    .cost_under(0.10)       # Fails if cost increased
+    .latency_under(5000)    # Fails if agent is slow
+)
+attest.evaluate(chain)
 ```
 
 ### 4. Documentation
@@ -333,10 +350,10 @@ expect(result).latency_under(5000)  # Fails if agent is slow
 Tests serve as specification:
 
 ```python
-def test_agent_responds_to_math():
+def test_agent_responds_to_math(attest):
     """Agent should correctly answer math questions."""
     result = agent.run("What is 2+2?")
-    expect(result).output_contains("4")
+    attest.evaluate(expect(result).output_contains("4"))
 ```
 
 ## FAQ
@@ -346,22 +363,22 @@ def test_agent_responds_to_math():
 1. Export checklist items from your spreadsheet
 2. Map each item to an assertion
 3. Organize into test functions
-4. Run `pytest` to validate
+4. Run `uv run pytest` to validate
 
 **What about edge cases I haven't tested?**
 
 Add them as you find them:
 
 ```python
-def test_edge_case_empty_input(agent):
+def test_edge_case_empty_input(attest, agent):
     """Agent should handle empty input gracefully."""
     result = agent.run("")
-    expect(result).output_not_contains("error")
+    attest.evaluate(expect(result).output_not_contains("error"))
 ```
 
 **Can I test in the cloud?**
 
-Yes, run pytest in CI/CD. Attest works everywhere Python runs.
+Yes, run `uv run pytest` in CI/CD. Attest works everywhere Python runs.
 
 **How do I monitor quality over time?**
 

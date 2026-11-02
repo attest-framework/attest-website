@@ -12,9 +12,7 @@ The Expect DSL provides a fluent, chainable API to declare assertions against ag
 ## Installation
 
 ```bash
-pnpm add @attest-ai/core
-# or with vitest integration
-pnpm add @attest-ai/vitest
+npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
 ```
 
 ## Import
@@ -22,8 +20,8 @@ pnpm add @attest-ai/vitest
 ```typescript
 import { attestExpect } from '@attest-ai/core';
 
-// Or via vitest integration (re-exports the same function)
-import { attestExpect } from '@attest-ai/vitest';
+// Evaluate chains with the vitest integration
+import { evaluate } from '@attest-ai/vitest';
 ```
 
 ## `attestExpect()`
@@ -724,7 +722,7 @@ describe("assistant agent", () => {
 | 5 | Embedding | Paid | `outputSimilarTo` |
 | 6 | LLM Judge | Paid | `passesJudge` |
 | 7 | Trace Tree | Free | `agentCalled`, `delegationDepth`, `agentOutputContains`, `crossAgentDataFlow`, `followsTransitions`, `aggregateCostUnder`, `aggregateTokensUnder`, `agentOrderedBefore`, `agentsOverlap`, `agentWallTimeUnder`, `orderedAgents` |
-| 8 | Plugin | Varies | `plugin` |
+| 8 | Plugin | Varies | `plugin`, `aggregateLatencyUnder`, `allToolsCalled` |
 
 ---
 
@@ -737,7 +735,11 @@ describe("assistant agent", () => {
 Chain a registered plugin evaluation alongside built-in assertions.
 
 ```typescript
-plugin(pluginName: string, config?: Record<string, unknown>): this
+plugin(
+  pluginId: string,
+  config?: Record<string, unknown>,
+  opts?: { soft?: boolean },
+): this
 ```
 
 ```typescript
@@ -745,3 +747,27 @@ attestExpect(result).plugin("toxicity-check", { threshold: 0.9 });
 ```
 
 See [Writing a Plugin](/tutorials/writing-plugin/) for registration details.
+
+### `aggregateLatencyUnder()`
+
+Asserts total latency across all steps of the trace tree is at or below a threshold (milliseconds).
+
+```typescript
+aggregateLatencyUnder(maxMs: number, opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).aggregateLatencyUnder(5000);
+```
+
+### `allToolsCalled()`
+
+Asserts that every tool in the list was called at least once.
+
+```typescript
+allToolsCalled(toolNames: string[], opts?: { soft?: boolean }): this
+```
+
+```typescript
+attestExpect(result).allToolsCalled(["search", "summarize", "format"]);
+```

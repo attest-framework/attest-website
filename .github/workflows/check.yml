@@ -1,0 +1,94 @@
+name: Check
+
+# Pull-request checks: the getting-started code must equal attest-examples at
+# the commit pinned in src/examples/source.json, the sync scripts' tests pass,
+# and the built site has no dead internal links. Read-only token, no secrets.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  examples-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Read pinned attest-examples commit
+        id: source
+        run: |
+          commit=$(jq -r .commit src/examples/source.json)
+          if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error file=src/examples/source.json::commit must be a full 40-character sha"
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout attest-examples at the pinned commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: attest-framework/attest-examples
+          ref: ${{ steps.source.outputs.commit }}
+          path: .examples-src
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check getting-started code against attest-examples
+        run: node scripts/sync-examples.mjs check .examples-src
+
+      - name: Check that the mismatch fixture fails
+        run: |
+          if node scripts/sync-examples.mjs check .examples-src scripts/fixtures/examples-drift 2> drift.log; then
+            echo "::error::drift check accepted scripts/fixtures/examples-drift"
+            exit 1
+          fi
+          cat drift.log
+          if ! grep -qx "  differs: quickstart/test_agent.py" drift.log; then
+            echo "::error::drift check failed on the fixture for the wrong reason"
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10.33.3
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test sync scripts
+        run: pnpm test
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Check internal links
+        run: node scripts/check-links.mjs dist

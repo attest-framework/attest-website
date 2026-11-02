@@ -495,16 +495,19 @@ import {
   OllamaAdapter,
   ManualAdapter,
   OTelAdapter,
+  LangChainAdapter,
 } from '@attest-ai/core';
 ```
 
-All adapters implement the `TraceAdapter` interface:
+Provider adapters expose `traceFromResponse()`, matching the `TraceAdapter` interface:
 
 ```typescript
 interface TraceAdapter {
-  capture(...args: unknown[]): Trace;
+  traceFromResponse(response: unknown, options?: Record<string, unknown>): Trace;
 }
 ```
+
+`ManualAdapter` exposes `capture(builderFn)` and `createBuilder()` instead.
 
 ### `OpenAIAdapter`
 

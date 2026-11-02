@@ -59,21 +59,28 @@ tests:
 #### Attest (Python)
 
 ```python
-from attest import expect
 from openai import OpenAI
 
-client = OpenAI(api_key="sk-...", model="gpt-4o-mini")
+from attest import AgentResult, OpenAIAdapter, expect
 
-def test_simple_qa():
+client = OpenAI()  # reads OPENAI_API_KEY
+adapter = OpenAIAdapter(agent_id="qa")
+
+def test_simple_qa(attest):
     """Test simple Q&A."""
-    result = client.chat.completions.create(
-        messages=[{"role": "user", "content": "Answer: What is 2+2?"}]
-    )
+    messages = [{"role": "user", "content": "Answer: What is 2+2?"}]
+    response = client.chat.completions.create(model="gpt-4.1", messages=messages)
 
-    (expect(result)
-      .output_contains("4")
-      .output_matches(r"^\d+$")
-      .cost_under(0.01))
+    trace = adapter.trace_from_response(response, input_messages=messages, cost_usd=0.002)
+    result = AgentResult(trace=trace)
+
+    chain = (
+        expect(result)
+        .output_contains("4")
+        .output_matches_regex(r"^\d+$")
+        .cost_under(0.01)
+    )
+    attest.evaluate(chain)
 ```
 
 ### 2. Convert PromptFoo Providers to Adapters
@@ -90,25 +97,14 @@ providers:
 #### Attest
 
 ```python
-from attest.adapters import openai, anthropic, ollama
+from attest import AnthropicAdapter, OllamaAdapter, OpenAIAdapter
 
-# OpenAI
-openai_result = openai.create_completion(
-    model="gpt-4o-mini",
-    messages=[...]
-)
+# Each provider adapter converts that provider's response into a Trace
+openai_adapter = OpenAIAdapter(agent_id="openai-agent")
+anthropic_adapter = AnthropicAdapter(agent_id="anthropic-agent")
+ollama_adapter = OllamaAdapter(agent_id="local-agent")
 
-# Anthropic
-anthropic_result = anthropic.create_message(
-    model="claude-3-sonnet",
-    messages=[...]
-)
-
-# Local (Ollama)
-local_result = ollama.generate(
-    model="mistral",
-    prompt="..."
-)
+trace = openai_adapter.trace_from_response(response, input_messages=messages)
 ```
 
 ### 3. Convert PromptFoo Asserts to Expect
@@ -133,12 +129,14 @@ assert:
 #### Attest Expects
 
 ```python
-(expect(result)
-  .output_contains("success")
-  .output_matches(r'^\d{4}-\d{2}-\d{2}$')
-  .word_count_between(90, 110)
-  .cost_under(0.05)
-  .matches_schema({"type": "object", "properties": {"status": {}}}))
+chain = (
+    expect(result)
+    .output_contains("success")
+    .output_matches_regex(r'^\d{4}-\d{2}-\d{2}$')
+    .cost_under(0.05)
+    .output_field_matches_schema("status", {"type": "string"})
+)
+attest.evaluate(chain)
 ```
 
 ### 4. Convert Test Variables to Test Functions
@@ -172,10 +170,10 @@ import pytest
     ("What is 2+2?", "4"),
     ("When was WWII?", "1939")
 ])
-def test_qa(question, expected):
+def test_qa(attest, question, expected):
     """Test Q&A across topics."""
     result = agent.run(question)
-    expect(result).output_contains(expected)
+    attest.evaluate(expect(result).output_contains(expected))
 ```
 
 ### 5. Replace Metric Scripts with Judge Prompts
@@ -198,15 +196,19 @@ tests:
 #### Attest
 
 ```python
-result = agent.run("question")
+def test_helpful_response(attest):
+    result = agent.run("question")
 
-(expect(result)
-  .word_count_between(100, 1000)
-  .passes_judge(
-    prompt="Is this response helpful?",
-    model="gpt-4o",
-    scoring="binary"
-  ))
+    chain = (
+        expect(result)
+        .output_matches_regex(r"(?s).{100,}")  # at least 100 characters
+        .passes_judge(
+            "Is this response helpful?",
+            threshold=0.8,
+            model="gpt-4.1",
+        )
+    )
+    attest.evaluate(chain)
 ```
 
 ## Complete Migration Example
@@ -277,36 +279,42 @@ class TestAgent:
         from my_app import create_agent
         return create_agent()
 
-    def test_math_question(self, agent):
+    def test_math_question(self, attest, agent):
         """Math question should return correct answer."""
         result = agent.run("What is 2+2?")
 
-        (expect(result)
-          .output_contains("4")
-          .output_matches("^4$")
-          .cost_under(0.01))
+        attest.evaluate(
+            expect(result)
+            .output_contains("4")
+            .output_matches_regex("^4$")
+            .cost_under(0.01)
+        )
 
-    def test_history_question(self, agent):
+    def test_history_question(self, attest, agent):
         """History question should return correct year."""
         result = agent.run("What year did WWII end?")
 
-        (expect(result)
-          .output_contains("1945")
-          .cost_under(0.02))
+        attest.evaluate(
+            expect(result)
+            .output_contains("1945")
+            .cost_under(0.02)
+        )
 
-    def test_response_quality(self, agent):
+    def test_response_quality(self, attest, agent):
         """Response should be comprehensive."""
         result = agent.run("Tell me about Python")
 
-        (expect(result)
-          .word_count_between(150, 500)
-          .passes_judge("Is this well-written and informative?"))
+        attest.evaluate(
+            expect(result)
+            .output_matches_regex(r"(?s).{500,}")
+            .passes_judge("Is this well-written and informative?")
+        )
 ```
 
 Run with:
 
 ```bash
-pytest test_agent.py -v
+uv run pytest test_agent.py -v
 ```
 
 ## PromptFoo to Attest Feature Map
@@ -318,7 +326,7 @@ pytest test_agent.py -v
 | Multiple prompts | Multiple test functions |
 | Provider selection | Adapter selection |
 | Contains assert | `.output_contains()` |
-| Regex assert | `.output_matches()` |
+| Regex assert | `.output_matches_regex()` |
 | Cost tracking | `.cost_under()` |
 | Custom JS eval | `.passes_judge()` |
 | CSV test data | pytest parametrize |
@@ -334,7 +342,7 @@ PromptFoo uses YAML, Attest uses Python/TypeScript. More expressive and testable
 # Attest: can use variables, loops, logic
 for query in queries:
     result = agent.run(query)
-    expect(result).output_contains("...")
+    attest.evaluate(expect(result).output_contains("..."))
 ```
 
 ### 2. Agents Over Prompts
@@ -342,13 +350,16 @@ for query in queries:
 Test entire agents, not just prompts:
 
 ```python
-from attest.adapters import langchain
+from attest import AgentResult, LangChainAdapter, expect
 
 # Full LangChain agent with tools
-agent = langchain.create_agent(llm, tools)
-result = agent.invoke({"input": "..."})
+adapter = LangChainAdapter(agent_id="research-agent")
 
-expect(result).trace_contains_tool("google_search")
+with adapter.capture() as handler:
+    agent.invoke({"input": "..."}, config={"callbacks": [handler]})
+
+result = AgentResult(trace=adapter.trace)
+attest.evaluate(expect(result).required_tools(["google_search"]))
 ```
 
 ### 3. Fluent API Over Assertions List
@@ -357,10 +368,13 @@ Chain assertions naturally:
 
 ```python
 # Attest: fluent, readable
-(expect(result)
-  .output_contains("answer")
-  .cost_under(0.05)
-  .passes_judge("Is correct?"))
+chain = (
+    expect(result)
+    .output_contains("answer")
+    .cost_under(0.05)
+    .passes_judge("Is correct?")
+)
+attest.evaluate(chain)
 ```
 
 ## Migration Checklist
@@ -368,9 +382,9 @@ Chain assertions naturally:
 - [ ] Convert `promptfooconfig.yaml` to test functions
 - [ ] Replace provider declarations with adapters
 - [ ] Map all test cases to `@pytest.mark.parametrize`
-- [ ] Convert `assert` statements to `.expect()` chains
+- [ ] Convert `assert` statements to `expect()` chains evaluated with `attest.evaluate()`
 - [ ] Replace JavaScript metrics with `.passes_judge()`
-- [ ] Run `pytest` and verify all tests pass
+- [ ] Run `uv run pytest` and verify all tests pass
 - [ ] Add to CI/CD pipeline
 - [ ] Remove PromptFoo config files
 
@@ -389,9 +403,9 @@ Use test parametrization:
     ("Prompt A", "Expected A"),
     ("Prompt B", "Expected B")
 ])
-def test_prompts(prompt, expected):
+def test_prompts(attest, prompt, expected):
     result = agent.run(prompt)
-    expect(result).output_contains(expected)
+    attest.evaluate(expect(result).output_contains(expected))
 ```
 
 **How do I replace PromptFoo's batch mode?**
@@ -399,7 +413,7 @@ def test_prompts(prompt, expected):
 pytest automatically runs all test functions:
 
 ```bash
-pytest test_agent.py  # Runs all tests
+uv run pytest test_agent.py  # Runs all tests
 ```
 
 **What about PromptFoo's web UI?**

@@ -218,6 +218,16 @@ class AgentResult {
 | `softFailures` | `readonly AssertionResult[]` | Assertions with status `"soft_fail"` (warnings). |
 | `passCount` | `number` | Count of passed assertions. |
 | `failCount` | `number` | Count of failed assertions (soft + hard). |
+| `notEvaluated` | `readonly AssertionResult[]` | Assertions the engine did not evaluate; each carries a `reason`. |
+| `notEvaluatedReasons` | `Readonly<Record<string, number>>` | Count of `not_evaluated` assertions per reason. |
+| `passRate` | `number \| null` | Passed / evaluated assertions; `null` when nothing was evaluated. |
+
+### Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `outcome(options?: { strict?: boolean })` | `"pass" \| "fail" \| "skip"` | Test outcome for the whole batch: any `hard_fail` fails; otherwise any `not_evaluated` skips (fails when `strict`); otherwise passes, including soft failures. |
+| `skipReason()` | `string` | `"not evaluated: <reason>[, ...]"` text for skipped tests. |
 
 ```typescript
 const evaluated = await evaluate(chain);
@@ -244,6 +254,7 @@ if (!evaluated.passed) {
 | `"pass"` | `STATUS_PASS` | Assertion succeeded. |
 | `"soft_fail"` | `STATUS_SOFT_FAIL` | Assertion failed but was marked `soft: true`. Reported as warning. |
 | `"hard_fail"` | `STATUS_HARD_FAIL` | Assertion failed. Test should fail. |
+| `"not_evaluated"` | `STATUS_NOT_EVALUATED` | Engine did not evaluate the assertion (for example, embedding and judge layers in simulation mode). Test is skipped, or fails under strict mode. |
 
 ---
 

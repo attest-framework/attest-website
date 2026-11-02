@@ -38,14 +38,21 @@ The version surfaces in every report:
 Set `repeat: N` on a judge spec to run the model `N` times concurrently and take the median. Mean, sample stddev, and the per-sample scores are recorded on `JudgeMetadata`:
 
 ```python
-from attest import expect
+from attest import Assertion
 
-await expect(trace).output.judges(
-    criteria="Answer is factually accurate.",
-    rubric="accuracy",
-    threshold=0.8,
-    repeat=5,
+# `repeat` is a judge spec key; `passes_judge()` does not expose it
+judge = Assertion(
+    assertion_id="judge_accuracy",
+    type="llm_judge",
+    spec={
+        "target": "output.message",
+        "criteria": "Answer is factually accurate.",
+        "rubric": "accuracy",
+        "threshold": 0.8,
+        "repeat": 5,
+    },
 )
+result = await client.evaluate_batch(trace, [judge])
 ```
 
 `repeat` accepts integers in `[1, 16]`. Out-of-range values fail the assertion fast rather than silently degrading to single-pass. The legacy `meta_eval: true` flag still works — it expands to `repeat: 3`.
@@ -65,12 +72,18 @@ A high-variance judge is a calibration signal: tighten the rubric, lower the tem
 Add `bias_probes: ["all"]` (or a subset of `verbosity`, `position`, `self_preference`) to surface known LLM-judge failure modes:
 
 ```python
-await expect(trace).output.judges(
-    criteria="Response addresses the question.",
-    rubric="helpfulness",
-    threshold=0.7,
-    bias_probes=["all"],
+judge = Assertion(
+    assertion_id="judge_helpfulness",
+    type="llm_judge",
+    spec={
+        "target": "output.message",
+        "criteria": "Response addresses the question.",
+        "rubric": "helpfulness",
+        "threshold": 0.7,
+        "bias_probes": ["all"],
+    },
 )
+result = await client.evaluate_batch(trace, [judge])
 ```
 
 Each probe runs the judge against a controlled mutation of the agent output and records the score delta versus the baseline:

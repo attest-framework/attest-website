@@ -3,161 +3,86 @@ title: "Python Setup"
 description: "Set up Attest for Python projects. Install the SDK, write your first test, and run it with pytest."
 ---
 
+import { Code } from "@astrojs/starlight/components";
+import agentPy from "../../../examples/quickstart/agent.py?raw";
+import conftestPy from "../../../examples/quickstart/conftest.py?raw";
+import testAgentPy from "../../../examples/quickstart/test_agent.py?raw";
+
 ## Installation
 
-Install the `attest-ai` package:
+Install the `attest-ai` package and pytest. Attest 1.0.0-rc.1 is a pre-release and an unconstrained install resolves to the older stable release, so set a version floor:
 
 ```bash
-uv add attest-ai
-```
-
-Or with pip:
-
-```bash
-pip install attest-ai
+uv add "attest-ai>=1.0.0rc1" pytest
 ```
 
 For framework-specific adapters, install extras:
 
 ```bash
-uv add 'attest-ai[langchain]'     # LangChain support
-uv add 'attest-ai[llamaindex]'    # LlamaIndex support
-uv add 'attest-ai[google-adk]'    # Google ADK support
-uv add 'attest-ai[otel]'          # OpenTelemetry support
+uv add "attest-ai[openai]>=1.0.0rc1"       # OpenAI adapter
+uv add "attest-ai[langchain]>=1.0.0rc1"    # LangChain support
+uv add "attest-ai[llamaindex]>=1.0.0rc1"   # LlamaIndex support
+uv add "attest-ai[google-adk]>=1.0.0rc1"   # Google ADK support
+uv add "attest-ai[otel]>=1.0.0rc1"         # OpenTelemetry support
 ```
 
 ## Create an Agent
 
-Start with a simple agent that uses OpenAI:
+The `@agent` decorator records each LLM and tool call on a `TraceBuilder` and returns an `AgentResult`. This is the [`quickstart`](https://github.com/attest-framework/attest-examples/tree/main/quickstart) example from attest-examples:
 
-```python
-from openai import OpenAI
-
-client = OpenAI()
-
-def my_agent(question: str) -> str:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": question}]
-    )
-    return response.choices[0].message.content
-```
+<Code code={agentPy} lang="python" title="quickstart/agent.py" />
 
 ## Write Your First Test
 
-Create a file `test_agent.py`:
+Attest includes a pytest plugin. Re-export its fixtures from `conftest.py`:
 
-```python
-from attest import expect
+<Code code={conftestPy} lang="python" title="quickstart/conftest.py" />
 
-# Run the agent
-result = my_agent("What is 2 + 2?")
+Then chain assertions with `expect()` and evaluate them with the `attest` fixture:
 
-# Assert the output
-(expect(result)
-  .output_contains("4")
-  .cost_under(0.05))
-```
-
-Chain multiple assertions on one result:
-
-```python
-(expect(result)
-  .output_contains("success")
-  .cost_under(0.05)
-  .latency_under(3000)
-  .passes_judge("Is the response helpful?"))
-```
+<Code code={testAgentPy} lang="python" title="quickstart/test_agent.py" />
 
 ## Run Tests
 
 ```bash
-python test_agent.py
+uv run pytest -v
 ```
 
-If all assertions pass:
+`attest.evaluate(chain)` fails the test on a hard failure and skips it when an assertion could not be evaluated, naming the reason.
 
-```
-✓ All assertions passed
-```
+## Multiple Trials
 
-If an assertion fails:
-
-```
-✗ Assertion failed: output_contains("goodbye")
-  Expected output to contain: goodbye
-  Actual output: hello world
-```
-
-### With pytest
-
-Attest includes a pytest plugin. Use the `attest` fixture:
-
-```python
-import pytest
-from attest import expect
-
-def test_math_question(attest):
-    result = my_agent("What is 2 + 2?")
-
-    chain = (
-        expect(result)
-        .output_contains("4")
-        .cost_under(0.05)
-    )
-    attest.evaluate(chain)
-```
-
-Run with:
-
-```bash
-pytest test_agent.py -v
-```
-
-## Soft Failures
-
-Continue testing after failures to see all issues:
-
-```python
-from attest import expect, soft_fail
-
-with soft_fail():
-    (expect(result)
-      .output_contains("hello")  # May fail
-      .cost_under(0.01)           # May fail
-      .passes_judge("..."))       # Will still run
-```
+Collect each trial with `attest.inspect(chain)`, which never fails or skips the test, and enforce only the aggregate with `attest.enforce(...)`. See [Verdicts](/sdk-guides/verdicts/).
 
 ## Using Adapters
 
-Use built-in adapters for framework-specific trace capture:
+Use built-in adapters for framework-specific trace capture (requires the `openai` extra):
 
 ```python
-from attest import OpenAIAdapter, AgentResult, expect
+from openai import OpenAI
+
+from attest import AgentResult, OpenAIAdapter, expect
 
 client = OpenAI()
 adapter = OpenAIAdapter(agent_id="assistant")
 
-response = client.chat.completions.create(
-    model="gpt-4.1",
-    messages=[{"role": "user", "content": "Explain recursion"}],
-)
 
-trace = adapter.trace_from_response(
-    response,
-    input_messages=[{"role": "user", "content": "Explain recursion"}],
-)
+def test_explains_recursion(attest):
+    messages = [{"role": "user", "content": "Explain recursion"}]
+    response = client.chat.completions.create(model="gpt-4.1", messages=messages)
 
-result = AgentResult(trace=trace)
-expect(result).output_contains("recursion").cost_under(0.10)
+    trace = adapter.trace_from_response(response, input_messages=messages)
+    result = AgentResult(trace=trace)
+
+    attest.evaluate(expect(result).output_contains("recursion").tokens_under(1000))
 ```
 
 ## Simulation Mode
 
-Run tests without real API calls:
+Run tests without provider calls: deterministic layers still evaluate, and embedding and judge assertions report `not_evaluated(simulation)`:
 
 ```bash
-ATTEST_SIMULATION=1 pytest test_agent.py -v
+ATTEST_SIMULATION=1 uv run pytest -v
 ```
 
 ## Environment Variables
@@ -168,7 +93,7 @@ ATTEST_SIMULATION=1 pytest test_agent.py -v
 | `ANTHROPIC_API_KEY` | Anthropic API key for judge assertions |
 | `ATTEST_ENGINE_PATH` | Override engine binary location |
 | `ATTEST_SIMULATION` | Enable simulation mode (no real LLM calls) |
-| `ATTEST_JUDGE_PROVIDER` | LLM judge provider: `openai`, `anthropic`, `gemini`, `ollama` |
+| `ATTEST_JUDGE_PROVIDER` | LLM judge provider: `openai`, `anthropic`, `gemini`, `acp` |
 | `ATTEST_JUDGE_MODEL` | Model for judge assertions (e.g., `gpt-4.1`) |
 
 ## Next Steps

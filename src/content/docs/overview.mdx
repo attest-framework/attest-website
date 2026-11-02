@@ -26,19 +26,27 @@ Use one of 11 adapters (or the `@agent` decorator) to capture execution traces:
 from attest import agent
 
 @agent("my-agent")
-async def my_agent(query: str) -> str:
-    # Your agent logic — tool calls, LLM calls, delegations
-    ...
+def my_agent(builder, query: str) -> dict:
+    # Your agent logic — record tool calls, LLM calls, delegations on the builder
+    builder.add_tool_call("calculator", args={"expression": "2+2"}, result={"value": 4})
+    return {"message": "4"}
 ```
 
 ### 2. Write assertions with the `expect()` DSL
 
 ```python
-result = await my_agent("What's 2+2?")
+from attest import expect
 
-expect(result).output_to_contain("4")                    # Layer 4: Free, instant
-expect(result).to_have_steps(["llm_call"])               # Layer 3: Free, instant
-expect(result).output_to_satisfy("mathematically correct") # Layer 6: ~$0.001
+def test_my_agent(attest):
+    result = my_agent(query="What's 2+2?")
+
+    chain = (
+        expect(result)
+        .output_contains("4")                            # Layer 4: Free, instant
+        .required_tools(["calculator"])                  # Layer 3: Free, instant
+        .passes_judge("mathematically correct")          # Layer 6: ~$0.001
+    )
+    attest.evaluate(chain)
 ```
 
 ### 3. Run with pytest (Python) or vitest (TypeScript)
@@ -77,10 +85,10 @@ The engine is a single static binary — no runtime dependencies, no containers.
 
 ## Version
 
-Current release: **v0.4.2** (SDK), **v0.4.0** (engine). Alpha stage — API surface is stabilizing but breaking changes are still possible before v1.0.
+Current release: **1.0.0-rc.1** (SDK and engine). Release candidate — the API surface is stabilizing but breaking changes are still possible before 1.0.
 
 | Package | Registry | Install |
 |---------|----------|---------|
-| `attest-ai` | PyPI | `pip install attest-ai` |
-| `@attest-ai/core` | npm | `npm install @attest-ai/core` |
-| `@attest-ai/vitest` | npm | `npm install @attest-ai/vitest` |
+| `attest-ai` | PyPI | `uv add "attest-ai>=1.0.0rc1"` |
+| `@attest-ai/core` | npm | `npm install -D "@attest-ai/core@>=1.0.0-rc.1"` |
+| `@attest-ai/vitest` | npm | `npm install -D "@attest-ai/vitest@>=1.0.0-rc.1"` |

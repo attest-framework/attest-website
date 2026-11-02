@@ -3,146 +3,95 @@ title: "Quickstart"
 description: "Get up and running with Attest in 5 minutes. Install the SDK and write your first agent test."
 ---
 
-Get up and running with Attest in 5 minutes.
+import { Code } from "@astrojs/starlight/components";
+import agentPy from "../../../examples/quickstart/agent.py?raw";
+import conftestPy from "../../../examples/quickstart/conftest.py?raw";
+import testAgentPy from "../../../examples/quickstart/test_agent.py?raw";
+import agentTs from "../../../examples/quickstart-ts/agent.ts?raw";
+import agentTestTs from "../../../examples/quickstart-ts/agent.test.ts?raw";
+
+Get up and running with Attest in 5 minutes. The code on this page is the [`quickstart`](https://github.com/attest-framework/attest-examples/tree/main/quickstart) and [`quickstart-ts`](https://github.com/attest-framework/attest-examples/tree/main/quickstart-ts) examples from attest-examples, which CI runs on every change.
 
 ## Installation
+
+Attest 1.0.0-rc.1 is a pre-release and an unconstrained install resolves to the older stable release, so set a version floor.
 
 ### Python
 
 ```bash
-uv add attest-ai
+uv add "attest-ai>=1.0.0rc1" pytest
 ```
 
-Or with pip:
+### TypeScript
 
 ```bash
-pip install attest-ai
-```
-
-### Node.js
-
-```bash
-npm install @attest-ai/core
-```
-
-Or with pnpm:
-
-```bash
-pnpm add @attest-ai/core
+npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
 ```
 
 ## Write Your First Test
 
 ### Step 1: Create an Agent
 
-Start with a simple agent that uses OpenAI:
+The example agent handles a refund request: one LLM call, then the `lookup_order` and `process_refund` tools. The `agent` decorator records each step on a `TraceBuilder`, so the test can assert on the trace without calling a model.
 
 #### Python
 
-```python
-from openai import OpenAI
-
-client = OpenAI()
-
-def my_agent(question: str) -> str:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": question}]
-    )
-    return response.choices[0].message.content
-```
+<Code code={agentPy} lang="python" title="quickstart/agent.py" />
 
 #### TypeScript
 
-```typescript
-import OpenAI from "openai";
-
-const client = new OpenAI();
-
-async function myAgent(question: string): Promise<string> {
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: question }]
-  });
-  return response.choices[0].message.content || "";
-}
-```
+<Code code={agentTs} lang="typescript" title="quickstart-ts/agent.ts" />
 
 ### Step 2: Add Assertions
 
-Test the agent with Attest assertions:
+Chain assertions on the agent result, then evaluate the chain. In Python, the pytest plugin provides the `attest` fixture; re-export it from `conftest.py`:
 
 #### Python
 
-```python
-from attest import expect
+<Code code={conftestPy} lang="python" title="quickstart/conftest.py" />
 
-# Run the agent
-result = my_agent("What is 2 + 2?")
-
-# Assert the output
-(expect(result)
-  .output_contains("4")
-  .cost_under(0.05))
-```
+<Code code={testAgentPy} lang="python" title="quickstart/test_agent.py" />
 
 #### TypeScript
 
-```typescript
-import { expect } from "@attest-ai/core";
-
-const result = await myAgent("What is 2 + 2?");
-
-expect(result)
-  .output_contains("4")
-  .cost_under(0.05);
-```
+<Code code={agentTestTs} lang="typescript" title="quickstart-ts/agent.test.ts" />
 
 ### Step 3: Run Tests
 
 #### Python
 
 ```bash
-python test_agent.py
+uv run pytest -v
 ```
 
 #### TypeScript
 
 ```bash
-node test_agent.js
+npx vitest run
 ```
 
-If all assertions pass, you'll see:
-
-```
-✓ All assertions passed
-```
-
-If an assertion fails, you'll see details:
-
-```
-✗ Assertion failed: output_contains("goodbye")
-  Expected output to contain: goodbye
-  Actual output: hello world
-```
+A failing assertion fails the test and names the assertion. Swap the tool order in `tools_called_in_order` / `toolsCalledInOrder` to see it.
 
 ## Understanding Assertions
 
 Attest uses a fluent API where you chain assertions. Each assertion validates a different aspect:
 
-| Layer | Example | What it checks |
-|-------|---------|----------------|
-| Schema | `.matches_schema({"type": "object"})` | Output structure |
-| Constraints | `.cost_under(0.10)`, `.latency_under(2000)` | Performance metrics |
-| Trace | `.trace_contains_model("gpt-4o-mini")` | Execution path |
-| Content | `.output_contains("hello")` | Text content |
-| Embedding | `.semantically_similar_to("greeting")` | Semantic meaning |
-| LLM Judge | `.passes_judge("Is this polite?")` | Domain-specific eval |
-| Trace Tree | `.trace_tree_valid()` | Structure of full trace |
-| Simulation | `.simulation_passes()` | Multi-agent scenario |
+| Layer | Python | TypeScript | What it checks |
+|-------|--------|------------|----------------|
+| Schema | `.output_matches_schema({...})` | `.outputMatchesSchema({...})` | Output structure |
+| Constraints | `.cost_under(0.10)`, `.latency_under(2000)` | `.costUnder(0.10)`, `.latencyUnder(2000)` | Performance metrics |
+| Trace | `.tools_called_in_order([...])` | `.toolsCalledInOrder([...])` | Execution path |
+| Content | `.output_contains("hello")` | `.outputContains("hello")` | Text content |
+| Embedding | `.output_similar_to("greeting")` | `.outputSimilarTo("greeting")` | Semantic meaning |
+| LLM Judge | `.passes_judge("Is this polite?")` | `.passesJudge("Is this polite?")` | Domain-specific eval |
+| Trace Tree | `.agent_called("billing")` | `.agentCalled("billing")` | Multi-agent structure |
+| Plugin | `.plugin("my-plugin", {...})` | `.plugin("my-plugin", {...})` | Custom checks |
+
+Layers 1–4 and the trace tree are deterministic and free. Embedding and judge assertions call a provider; under `ATTEST_SIMULATION=1` they return `not_evaluated(simulation)` instead.
 
 ## Next Steps
 
+- **[Python Setup](/getting-started/python/)** and **[TypeScript Setup](/getting-started/typescript/)** — Project setup per language
 - **[Python SDK Reference](/reference/python/expect-dsl/)** — Explore all assertion methods
 - **[Adapters](/reference/python/adapters/)** — Learn about provider integration
 - **[Migration Guides](/migration/from-deepeval/)** — Upgrade from other frameworks
@@ -150,55 +99,35 @@ Attest uses a fluent API where you chain assertions. Each assertion validates a 
 
 ## Common Patterns
 
-### Multiple Assertions
+### Multiple Trials
 
-Chain multiple assertions on one result:
-
-```python
-(expect(result)
-  .output_contains("success")
-  .cost_under(0.05)
-  .latency_under(3000)
-  .passes_judge("Is the response helpful?"))
-```
-
-### Soft Failures
-
-Continue testing after failures to see all issues:
-
-```python
-from attest import expect, soft_fail
-
-with soft_fail():
-    (expect(result)
-      .output_contains("hello")  # May fail
-      .cost_under(0.01)           # May fail
-      .passes_judge("..."))       # Will still run
-```
+`attest.evaluate(chain)` fails or skips the test on its own. To judge several runs together, collect each with `attest.inspect(chain)` and enforce only the aggregate; see [Verdicts](/sdk-guides/verdicts/).
 
 ### Adapter Integration
 
-Use built-in adapters for framework-specific features:
+Use built-in adapters to build a trace from a provider response:
 
 ```python
-from attest.adapters import langchain
+from openai import OpenAI
 
-# Agent built with LangChain
-from langchain_openai import ChatOpenAI
-from langchain.agents import create_react_agent
+from attest import AgentResult, OpenAIAdapter, expect
 
-agent = create_react_agent(...)
-result = agent.invoke({"input": "..."})
+client = OpenAI()
+adapter = OpenAIAdapter(agent_id="assistant")
 
-# Attest auto-captures trace
-expect(result).output_contains("...").trace_contains_tool("google_search")
+
+def test_explains_recursion(attest):
+    messages = [{"role": "user", "content": "Explain recursion"}]
+    response = client.chat.completions.create(model="gpt-4.1", messages=messages)
+    result = AgentResult(trace=adapter.trace_from_response(response, input_messages=messages))
+    attest.evaluate(expect(result).output_contains("recursion").tokens_under(1000))
 ```
 
 ## Troubleshooting
 
 **"API key not found"**
 
-Set your provider's API key as an environment variable:
+Embedding and judge assertions need a provider key. Set it as an environment variable:
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -206,24 +135,17 @@ export OPENAI_API_KEY="sk-..."
 
 **"Assertion failed but I expected it to pass"**
 
-Check the actual output:
+Inspect the result the agent produced:
 
 ```python
-print(result.output)  # See what the agent actually returned
-print(result.cost)    # Check cost and latency
-print(result.trace)   # Inspect execution trace
+print(result.trace.output)    # What the agent returned
+print(result.trace.steps)     # LLM and tool calls in order
+print(result.trace.metadata)  # Tokens, cost and latency
 ```
 
-**"Tests running slow"**
+**"Tests call a paid model"**
 
-Use local models with Ollama to reduce latency:
-
-```python
-from attest.adapters import ollama
-
-# Runs locally, no API calls
-result = ollama_agent("What is 2 + 2?")
-```
+Run with `ATTEST_SIMULATION=1`: deterministic layers still evaluate, and embedding and judge assertions report `not_evaluated(simulation)` without a provider call.
 
 ## Learn More
 

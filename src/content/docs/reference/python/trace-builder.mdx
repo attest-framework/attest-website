@@ -193,8 +193,9 @@ builder.set_metadata(total_tokens=350, cost_usd=0.001, latency_ms=800)
 trace = builder.build()
 result = AgentResult(trace=trace)
 
-# Use with expect() DSL
-expect(result).output_contains("Tokyo").cost_under(0.01)
+# Evaluate with the pytest fixture: attest.evaluate(chain)
+def test_weather_trace(attest):
+    attest.evaluate(expect(result).output_contains("Tokyo").cost_under(0.01))
 ```
 
 ## Trace Dataclass
@@ -385,15 +386,18 @@ print(tree.delegations)   # [("orchestrator", "researcher"), ("orchestrator", "w
 The `expect()` DSL includes Layer 7 (trace tree) assertions that operate on the tree structure:
 
 ```python
-expect(result) \
-    .agent_called("researcher") \
-    .agent_called("writer") \
-    .delegation_depth(2) \
-    .agent_output_contains("researcher", "documents") \
-    .cross_agent_data_flow("researcher", "writer", "documents") \
-    .follows_transitions([("orchestrator", "researcher"), ("orchestrator", "writer")]) \
-    .aggregate_cost_under(0.05) \
+chain = (
+    expect(result)
+    .agent_called("researcher")
+    .agent_called("writer")
+    .delegation_depth(2)
+    .agent_output_contains("researcher", "documents")
+    .cross_agent_data_flow("researcher", "writer", "documents")
+    .follows_transitions([("orchestrator", "researcher"), ("orchestrator", "writer")])
+    .aggregate_cost_under(0.05)
     .aggregate_tokens_under(10000)
+)
+attest.evaluate(chain)  # inside a pytest test using the `attest` fixture
 ```
 
 See the [Expect DSL reference](/reference/python/expect-dsl/) for the full list of trace tree assertions.

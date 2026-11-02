@@ -20,9 +20,9 @@ DeepEval focuses on metric evaluation. Attest provides:
 | DeepEval | Attest | Notes |
 |----------|--------|-------|
 | `Metric` | Assertion method | e.g., `output_contains()` |
-| `evaluate()` | `expect()` | Entry point |
+| `evaluate()` | `expect()` + `attest.evaluate()` | Build a chain, then evaluate it with the `attest` fixture |
 | `Faithfulness` | `passes_judge()` | LLM evaluation |
-| `AnswerRelevancy` | `semantically_similar_to()` | Embedding-based |
+| `AnswerRelevancy` | `output_similar_to()` | Embedding-based |
 | `RAGAS` | 8-layer stack | Comprehensive validation |
 | `DeepEvalConfig` | `config` module | Global configuration |
 
@@ -48,10 +48,11 @@ print(result.score)
 ```python
 from attest import expect
 
-result = agent.run("What color is the sky?")
+def test_sky_answer(attest):
+    result = agent.run("What color is the sky?")
 
-# Use LLM judge instead
-expect(result).passes_judge("Is the answer faithful to facts?")
+    # Use LLM judge instead
+    attest.evaluate(expect(result).passes_judge("Is the answer faithful to facts?"))
 ```
 
 ### 2. Replace evaluate() with expect()
@@ -78,15 +79,20 @@ print(f"Pass rate: {results.get_pass_rate()}")
 #### Attest
 
 ```python
+import pytest
 from attest import expect
 
-for test_case in test_cases:
+@pytest.mark.parametrize("test_case", test_cases)
+def test_agent_answers(attest, test_case):
     result = agent.run(test_case.input)
 
-    (expect(result)
-      .passes_judge("Is this faithful to facts?")
-      .passes_judge("Is this relevant to the question?")
-      .output_not_contains("error"))
+    chain = (
+        expect(result)
+        .passes_judge("Is this faithful to facts?")
+        .passes_judge("Is this relevant to the question?")
+        .output_not_contains("error")
+    )
+    attest.evaluate(chain)
 ```
 
 ### 3. Migrate RAGAS Evaluation
@@ -116,23 +122,27 @@ result = metric.measure(
 ```python
 from attest import expect
 
-result = rag_agent.run("question")
+def test_rag_answer(attest):
+    result = rag_agent.run("question")
 
-(expect(result)
-  # Layer 1: Schema
-  .matches_schema({"type": "string"})
-  # Layer 2: Constraints
-  .cost_under(0.10)
-  # Layer 3: Trace
-  .trace_contains_tool("retrieval")
-  # Layer 4: Content
-  .output_contains("key fact")
-  # Layer 5: Embedding
-  .semantically_similar_to("expected answer")
-  # Layer 6: Judge
-  .passes_judge("Is this harmful?", scoring="binary")
-  # Layer 7: Trace Tree
-  .trace_tree_valid())
+    chain = (
+        expect(result)
+        # Layer 1: Schema
+        .output_matches_schema({"type": "object", "required": ["message"]})
+        # Layer 2: Constraints
+        .cost_under(0.10)
+        # Layer 3: Trace
+        .required_tools(["retrieval"])
+        # Layer 4: Content
+        .output_contains("key fact")
+        # Layer 5: Embedding
+        .output_similar_to("expected answer")
+        # Layer 6: Judge
+        .passes_judge("Is this harmful?")
+        # Layer 7: Trace Tree
+        .delegation_depth(3)
+    )
+    attest.evaluate(chain)
 ```
 
 ### 4. Replace TestCase with Direct Assertions
@@ -159,14 +169,17 @@ test_cases = [
 ```python
 from attest import expect
 
+import pytest
+
 inputs = [
     {"question": "What is 2+2?", "expected": "4"},
     {"question": "What is 3+3?", "expected": "6"}
 ]
 
-for test in inputs:
+@pytest.mark.parametrize("test", inputs)
+def test_math_answers(attest, test):
     result = agent.run(test["question"])
-    expect(result).output_contains(test["expected"])
+    attest.evaluate(expect(result).output_contains(test["expected"]))
 ```
 
 ### 5. Use Adapters Instead of Custom Metrics
@@ -187,21 +200,20 @@ class MyMetric(CustomMetric):
 ```python
 from attest import expect
 
-# Use built-in judge
-result = agent.run("...")
+def test_positive_sentiment(attest):
+    # Use built-in judge
+    result = agent.run("...")
 
-expect(result).passes_judge(
-    prompt="Does this contain positive sentiment?",
-    model="gpt-4o",
-    scoring="scale_0_10"
-)
+    attest.evaluate(
+        expect(result).passes_judge(
+            "Does this contain positive sentiment?",
+            threshold=0.7,
+            model="gpt-4.1",
+        )
+    )
 
-# Or write custom adapter for complex logic
-from attest.adapters import BaseAdapter
-
-class CustomEval(BaseAdapter):
-    def evaluate(self, result):
-        return result.output.lower().count("good")
+    # Or register a plugin for complex custom logic
+    attest.evaluate(expect(result).plugin("positive_sentiment", {"min_count": 1}))
 ```
 
 ## Complete Example
@@ -241,6 +253,7 @@ print(f"Pass rate: {results.get_pass_rate()}")
 ### After: Attest
 
 ```python
+import pytest
 from attest import expect
 
 test_cases = [
@@ -248,16 +261,18 @@ test_cases = [
     {"question": "What is 2+2?", "expected": "4"}
 ]
 
-for test in test_cases:
+@pytest.mark.parametrize("test", test_cases)
+def test_agent_answers(attest, test):
     result = agent.run(test["question"])
 
-    (expect(result)
-      .output_contains(test["expected"])
-      .passes_judge("Is the answer faithful?", model="gpt-4o")
-      .passes_judge("Does it answer the question?", model="gpt-4o")
-      .passes_judge("Is the answer correct?", model="gpt-4o"))
-
-print("All tests passed!")
+    chain = (
+        expect(result)
+        .output_contains(test["expected"])
+        .passes_judge("Is the answer faithful?", model="gpt-4.1")
+        .passes_judge("Does it answer the question?", model="gpt-4.1")
+        .passes_judge("Is the answer correct?", model="gpt-4.1")
+    )
+    attest.evaluate(chain)
 ```
 
 ## Benefits of Attest
@@ -267,10 +282,13 @@ print("All tests passed!")
 Stack multiple validations in one fluent chain:
 
 ```python
-(expect(result)
-  .output_contains("answer")
-  .cost_under(0.05)
-  .passes_judge("Is correct?"))
+chain = (
+    expect(result)
+    .output_contains("answer")
+    .cost_under(0.05)
+    .passes_judge("Is correct?")
+)
+attest.evaluate(chain)
 ```
 
 ### 2. Trace Inspection
@@ -278,8 +296,8 @@ Stack multiple validations in one fluent chain:
 See exactly what your agent did:
 
 ```python
-expect(result).trace_contains_tool("google_search")
-expect(result).trace_depth_under(5)
+chain = expect(result).required_tools(["google_search"]).step_count("lte", 5)
+attest.evaluate(chain)
 ```
 
 ### 3. Framework Adapters
@@ -287,28 +305,35 @@ expect(result).trace_depth_under(5)
 Built-in support for LangChain, CrewAI, LlamaIndex:
 
 ```python
-from attest.adapters import langchain
+from attest import AgentResult, LangChainAdapter, expect
 
-agent = langchain.create_agent(...)
-result = agent.invoke(...)
+adapter = LangChainAdapter(agent_id="research-agent")
 
-# Attest auto-captures trace
-expect(result).trace_contains_tool("...")
+with adapter.capture() as handler:
+    agent.invoke({"input": "..."}, config={"callbacks": [handler]})
+
+# Attest captures the trace through the callback handler
+result = AgentResult(trace=adapter.trace)
+attest.evaluate(expect(result).required_tools(["..."]))
 ```
 
 ### 4. Multi-Agent Testing
 
-Test entire scenarios with multiple agents:
+Assert on the trace tree of a multi-agent run:
 
 ```python
-from attest import simulate
+from attest import expect
 
-scenario = simulate.scenario()
-scenario.add_agent(researcher)
-scenario.add_agent(reviewer)
-results = scenario.run(repeat=5)
+def test_multi_agent_run(attest):
+    result = run_pipeline("question")  # your agent calls delegate() to record sub-agents
 
-expect(results).success_rate_above(0.95)
+    chain = (
+        expect(result)
+        .agent_called("researcher")
+        .agent_called("reviewer")
+        .agent_ordered_before("researcher", "reviewer")
+    )
+    attest.evaluate(chain)
 ```
 
 ## FAQ
@@ -326,7 +351,7 @@ RAGAS concepts map to Attest's 8-layer stack. Use `passes_judge()` with custom p
 Use trace inspection to verify retrieval:
 
 ```python
-expect(result).trace_contains_tool("retrieval")
+attest.evaluate(expect(result).required_tools(["retrieval"]))
 ```
 
 **What about synthetic data generation?**

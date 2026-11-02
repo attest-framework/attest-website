@@ -111,12 +111,12 @@ Evaluates numeric bounds, value ranges, and quantitative constraints on trace me
 ```python
 # Cost and performance constraints
 expect(result).cost_under(0.05)
-expect(result).total_tokens_under(3000)
-expect(result).latency_under(ms=2000)
+expect(result).tokens_under(3000)
+expect(result).latency_under(2000)  # milliseconds
 
-# Output field constraints
-expect(result).output_field_between("confidence", 0.0, 1.0)
-expect(result).step_count_under(15)
+# Generic constraints on trace fields
+expect(result).constraint("metadata.total_tokens", "between", min=100, max=3000)
+expect(result).step_count("lte", 15)
 ```
 
 ### Engine Behavior
@@ -151,31 +151,32 @@ Analyzes the execution trace for structural properties: tool call presence, orde
 
 ```python
 # Tool presence and ordering
-expect(result).to_call_tool("lookup_order")
-expect(result).to_not_call_tool("delete_account")
-expect(result).tool_called_before("check_eligibility", "process_refund")
+expect(result).required_tools(["lookup_order"])
+expect(result).forbidden_tools(["delete_account"])
+expect(result).tools_called_in_order(["check_eligibility", "process_refund"])
 
 # Loop and duplicate detection
-expect(result).no_duplicate_tool_calls()
-expect(result).step_count_under(15)
+expect(result).no_duplicate_tools()
+expect(result).no_tool_loops("lookup_order", max_repetitions=2)
+expect(result).step_count("lte", 15)
 
-# State machine transitions
-expect(result).follows_transitions({
-    "IDENTIFY": {"VERIFY"},
-    "VERIFY": {"CHECK_ELIGIBILITY"},
-    "CHECK_ELIGIBILITY": {"PROCESS", "DENY"},
-})
+# State machine transitions (multi-agent trace tree)
+expect(result).follows_transitions([
+    ("IDENTIFY", "VERIFY"),
+    ("VERIFY", "CHECK_ELIGIBILITY"),
+    ("CHECK_ELIGIBILITY", "PROCESS"),
+])
 
 # Temporal assertions (multi-agent)
-expect(result).trace_tree().agent("Critic").started_after("FixProposer")
-expect(result).trace_tree().agents("LogAnalyst", "RunbookResearcher").overlap()
-expect(result).trace_tree().agent("LogAnalyst").wall_time_under(ms=5000)
+expect(result).agent_ordered_before("FixProposer", "Critic")
+expect(result).agents_overlap("LogAnalyst", "RunbookResearcher")
+expect(result).agent_wall_time_under("LogAnalyst", 5000)  # milliseconds
 
 # Ordered agent sequences
-expect(result).to_follow_agent_order([
+expect(result).ordered_agents([
     ["LogAnalyst", "RunbookResearcher"],  # parallel group
-    "FixProposer",                         # must follow research
-    "Critic",                              # must follow proposal
+    ["FixProposer"],                       # must follow research
+    ["Critic"],                            # must follow proposal
 ])
 ```
 
@@ -201,15 +202,15 @@ Matches output text against patterns, keywords, and content rules. Use for verif
 ```python
 # Content presence
 expect(result).output_contains("ORD-123456")
-expect(result).output_contains_any(["refund processed", "refund approved"])
+expect(result).output_has_any_keyword(["refund processed", "refund approved"])
 
 # Content absence
 expect(result).output_not_contains("internal_api_key")
-expect(result).output_not_contains_any(["jira", "salesforce", "zendesk"])
+expect(result).output_forbids(["jira", "salesforce", "zendesk"])
 
 # Regex patterns
-expect(result).output_matches_pattern(r"\$\d+\.\d{2}")  # dollar amount
-expect(result).output_not_matches_pattern(r"\b\d{3}-\d{2}-\d{4}\b")  # SSN
+expect(result).output_matches_regex(r"\$\d+\.\d{2}")  # dollar amount
+expect(result).output_forbids([r"\b\d{3}-\d{2}-\d{4}\b"])  # SSN
 ```
 
 ### Engine Behavior
@@ -231,7 +232,7 @@ Computes semantic similarity between the agent's output and a reference text usi
 ### SDK API
 
 ```python
-expect(result).semantically_similar_to(
+expect(result).output_similar_to(
     "Your order is outside the 30-day return window and is not eligible for a refund.",
     threshold=0.7
 )
@@ -262,9 +263,9 @@ Uses an LLM to evaluate subjective qualities: empathy, helpfulness, coherence, f
 ### SDK API
 
 ```python
-expect(result).judge_score("empathy", above=0.7)
-expect(result).judge_score("helpfulness", above=0.8)
-expect(result).judge_score("professionalism", above=0.8)
+expect(result).passes_judge("The response shows empathy", threshold=0.7)
+expect(result).passes_judge("The response is helpful", threshold=0.8)
+expect(result).passes_judge("The response is professional", rubric="professional", threshold=0.8)
 ```
 
 ### Engine Behavior
@@ -272,11 +273,11 @@ expect(result).judge_score("professionalism", above=0.8)
 The engine constructs a judge prompt with the agent's output, the evaluation dimension, and a scoring rubric. The judge LLM returns a score from 0.0 to 1.0 with an explanation.
 
 Configuration:
-- `ATTEST_JUDGE_PROVIDER` — LLM provider (`openai`, `anthropic`, `gemini`, `ollama`)
+- `ATTEST_JUDGE_PROVIDER` — LLM provider (`openai`, `anthropic`, `gemini`, `acp`)
 - `ATTEST_JUDGE_MODEL` — Model name (e.g., `gpt-4.1`)
 
 :::caution
-LLM judges are non-deterministic. The same input can produce different scores across runs. Use the `@repeat(n)` decorator with `pass_at_k` and `consistency_at_k` to measure reliability across multiple evaluations.
+LLM judges are non-deterministic. The same input can produce different scores across runs. Run judge assertions several times and compare scores to measure reliability, and mark them `soft=True` so a single low score does not block a run.
 :::
 
 ## Layer 7: Trace Tree
@@ -330,6 +331,9 @@ Runs user-defined evaluation logic. Plugins execute outside the engine and submi
 
 ```python
 # Plugin assertions are submitted asynchronously
+expect(result).plugin("compliance_checker", {"ruleset": "pci"})
+
+# The SDK computes the result and submits it to the engine
 await client.submit_plugin_result(
     trace_id=trace.trace_id,
     plugin_name="compliance_checker",
@@ -360,11 +364,11 @@ flowchart LR
     BUDGET -->|No| BLOCK["Block merge"]
 ```
 
-Configure the budget per test suite:
+Configure the budget per engine session:
 
-```python
-# Allow up to 2 soft failures in a test suite before blocking
-attest.config.soft_failure_budget = 2
+```bash
+# Allow up to 2 soft failures per engine session before blocking
+export ATTEST_MAX_SOFT_FAILURES=2
 ```
 
 ## Tier Mapping
@@ -378,23 +382,27 @@ The tier system maps assertion layers to cost categories for test scheduling:
 | **TIER_3** | L6 | ~$0.01+ | Pre-merge, nightly |
 
 ```python
-from attest import tier, TIER_1
+from attest import TIER_1, expect, tier
 
 @tier(TIER_1)
-async def test_tool_schema(result):
-    expect(result).output_matches_schema(schema)
-    expect(result).to_call_tool("lookup_order")
-    expect(result).output_contains("ORD-123")
+def test_tool_schema(attest, result):
+    chain = (
+        expect(result)
+        .output_matches_schema(schema)
+        .required_tools(["lookup_order"])
+        .output_contains("ORD-123")
+    )
+    attest.evaluate(chain)
 ```
 
 Run tier-filtered tests:
 
 ```bash
 # Free tests only (development)
-ATTEST_MAX_TIER=1 pytest -m attest
+pytest -m attest --attest-tier=1
 
 # Include embeddings (PR check)
-ATTEST_MAX_TIER=2 pytest -m attest
+pytest -m attest --attest-tier=2
 
 # Full suite (nightly CI)
 pytest -m attest

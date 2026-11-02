@@ -37,43 +37,46 @@ import ComparisonTable from '@components/ComparisonTable.astro';
 from attest import agent, expect
 
 @agent("weather-agent")
-async def weather_agent(query: str) -> str:
-    # Your agent implementation
+def weather_agent(builder, query: str) -> dict:
+    # Your agent implementation: record tool calls on the builder
+    builder.add_tool_call("get_weather", args={"city": "Tokyo"})
     ...
 
-async def test_weather_agent():
-    result = await weather_agent("What's the weather in Tokyo?")
+def test_weather_agent(attest):
+    result = weather_agent(query="What's the weather in Tokyo?")
 
-    expect(result).to_have_steps(["llm_call", "tool_call"])  # Layer 3: Free
-    expect(result).output_to_contain("Tokyo")                 # Layer 4: Free
-    expect(result).output_to_be_similar_to(                   # Layer 5: ≪$0.001
-        "Current weather conditions in Tokyo"
+    chain = (
+        expect(result)
+        .required_tools(["get_weather"])                          # Layer 3: Free
+        .output_contains("Tokyo")                                 # Layer 4: Free
+        .output_similar_to("Current weather conditions in Tokyo")  # Layer 5: ≪$0.001
+        .passes_judge("Provides accurate, helpful weather information")  # Layer 6: ~$0.001
     )
-    expect(result).output_to_satisfy(                         # Layer 6: ~$0.001
-        "Provides accurate, helpful weather information"
-    )
+    attest.evaluate(chain)
 ```
 
 ### TypeScript
 
 ```typescript
-import { Agent, attestExpect } from '@attest-ai/core';
+import { agent, attestExpect } from '@attest-ai/core';
+import { evaluate } from '@attest-ai/vitest';
 
-const weatherAgent = new Agent('weather-agent', async (query: string) => {
-  // Your agent implementation
+const weatherAgent = agent('weather-agent', (builder, args) => {
+  // Your agent implementation: record tool calls on the builder
+  builder.addToolCall('get_weather', { args: { city: 'Tokyo' } });
+  return { message: '...' };
 });
 
 test('weather agent returns weather data', async () => {
-  const result = await weatherAgent.run('What is the weather in Tokyo?');
+  const result = weatherAgent({ query: 'What is the weather in Tokyo?' });
 
-  attestExpect(result).toHaveSteps(['llm_call', 'tool_call']);  // Layer 3: Free
-  attestExpect(result).outputToContain('Tokyo');                 // Layer 4: Free
-  attestExpect(result).outputToBeSimilarTo(                      // Layer 5: ≪$0.001
-    'Current weather conditions in Tokyo'
-  );
-  attestExpect(result).outputToSatisfy(                          // Layer 6: ~$0.001
-    'Provides accurate, helpful weather information'
-  );
+  const chain = attestExpect(result)
+    .requiredTools(['get_weather'])                               // Layer 3: Free
+    .outputContains('Tokyo')                                      // Layer 4: Free
+    .outputSimilarTo('Current weather conditions in Tokyo')       // Layer 5: ≪$0.001
+    .passesJudge('Provides accurate, helpful weather information'); // Layer 6: ~$0.001
+
+  await evaluate(chain);
 });
 ```
 
@@ -108,10 +111,10 @@ test('weather agent returns weather data', async () => {
 
 ```bash
 # Python
-pip install attest-ai
+uv add "attest-ai>=1.0.0rc1"
 
 # TypeScript
-npm install @attest-ai/core @attest-ai/vitest
+npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
 ```
 
 Check the [Python quickstart](/getting-started/python/) or [TypeScript quickstart](/getting-started/typescript/) for a complete walkthrough.
