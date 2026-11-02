@@ -74,7 +74,7 @@ def test_explains_recursion(attest):
     trace = adapter.trace_from_response(response, input_messages=messages)
     result = AgentResult(trace=trace)
 
-    attest.evaluate(expect(result).output_contains("recursion").cost_under(0.10))
+    attest.evaluate(expect(result).output_contains("recursion").tokens_under(1000))
 ```
 
 ## Simulation Mode

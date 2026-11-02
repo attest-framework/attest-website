@@ -20,6 +20,7 @@ function pageUrl(file) {
 
 function exists(pathname) {
   const target = join(dist, decodeURIComponent(pathname));
+  if (target !== dist && !target.startsWith(dist + sep)) return false;
   if (pathname.endsWith("/")) return existsSync(join(target, "index.html"));
   if (existsSync(target)) return statSync(target).isFile() || existsSync(join(target, "index.html"));
   return existsSync(`${target}.html`);

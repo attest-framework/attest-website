@@ -54,7 +54,7 @@ Building a chain does not run it. Pass the chain to the `attest` fixture:
 | `attest.inspect(chain)` | Evaluate without enforcing the outcome; returns an `AgentResult` |
 | `attest.enforce(verdict)` | Fail or skip the test from an `inspect()` result or an aggregate of trial results |
 
-Every assertion method accepts `soft=True` (keyword-only) to record a failure without failing the test.
+Every assertion method except `output_forbids` accepts `soft=True` (keyword-only) to record a failure without failing the test.
 
 ## Assertion Layers
 
@@ -356,7 +356,7 @@ expect(result).ordered_agents([["planner"], ["researcher", "fact_checker"], ["wr
 
 ## Soft Failures
 
-Every assertion accepts `soft=True`. A soft failure is recorded in the results but does not fail the test, so the remaining assertions still report.
+Every assertion except `output_forbids` accepts `soft=True`. A soft failure is recorded in the results but does not fail the test, so the remaining assertions still report.
 
 ```python
 def test_agent(attest):

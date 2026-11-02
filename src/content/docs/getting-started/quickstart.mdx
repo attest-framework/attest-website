@@ -120,7 +120,7 @@ def test_explains_recursion(attest):
     messages = [{"role": "user", "content": "Explain recursion"}]
     response = client.chat.completions.create(model="gpt-4.1", messages=messages)
     result = AgentResult(trace=adapter.trace_from_response(response, input_messages=messages))
-    attest.evaluate(expect(result).output_contains("recursion").cost_under(0.10))
+    attest.evaluate(expect(result).output_contains("recursion").tokens_under(1000))
 ```
 
 ## Troubleshooting

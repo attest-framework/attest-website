@@ -143,7 +143,7 @@ with adapter.capture() as handler:
     agent.invoke({"input": "question"}, config={"callbacks": [handler]})
 
 result = AgentResult(trace=adapter.trace)
-attest.evaluate(expect(result).required_tools(["google_search"]).cost_under(0.10))
+attest.evaluate(expect(result).required_tools(["google_search"]))
 ```
 
 The handler records chain, chat model, LLM, and tool events (`on_chain_start`, `on_llm_end`, `on_tool_start`, and related callbacks).
