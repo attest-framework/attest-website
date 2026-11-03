@@ -42,4 +42,23 @@ describe("rewriteGuideLinks", () => {
       'line 1: relative link "missing.md" has no website page',
     ]);
   });
+
+  it("links a non-guide repository file through repoFileUrl, keeping the anchor", () => {
+    const files = new Map([["../../proto/x.schema.json", "https://github.com/o/r/blob/v1/proto/x.schema.json"]]);
+    const result = rewriteGuideLinks(
+      "[s](../../proto/x.schema.json#defs) [g](verdicts.md)",
+      slugs,
+      "",
+      (path) => files.get(path) ?? null,
+    );
+    assert.deepEqual(result, {
+      markdown: "[s](https://github.com/o/r/blob/v1/proto/x.schema.json#defs) [g](/sdk-guides/verdicts/)",
+      problems: [],
+    });
+  });
+
+  it("still reports a relative link that repoFileUrl cannot resolve", () => {
+    const result = rewriteGuideLinks("[m](missing.md)", slugs, "", () => null);
+    assert.deepEqual(result.problems, ['line 1: relative link "missing.md" has no website page']);
+  });
 });

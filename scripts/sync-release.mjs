@@ -9,7 +9,7 @@
 // `import` and `export` into JavaScript that runs at build time, so an `.mdx`
 // copy would execute content from another repository.
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { markdownParser, rewriteGuideLinks } from "./guide-links.mjs";
 
@@ -19,6 +19,7 @@ const GUIDE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*\.md$/;
 const ALLOWED_URL_SCHEMES = new Set(["http", "https", "mailto"]);
 const URL_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
 const ATTEST_EDIT_BASE = "https://github.com/attest-framework/attest/edit/main/docs/guides";
+const ATTEST_BLOB_BASE = "https://github.com/attest-framework/attest/blob";
 
 const websiteRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const changelogTarget = join(websiteRoot, "src/synced/CHANGELOG.md");
@@ -114,12 +115,33 @@ for (const entry of entries) {
 if (guides.length === 0) fail(`no *.md guides in ${guidesSource}`);
 const guideSlugs = new Set(guides.map((entry) => entry.name.slice(0, -".md".length)));
 
-function withSiteLinks(markdown, guideBase, label) {
-  const rewritten = rewriteGuideLinks(markdown, guideSlugs, guideBase);
+// A relative link to another file in attest (a schema, a fixture) has no website
+// page; it becomes a link to that file on GitHub at the release tag. The target
+// must exist as a regular file inside the checkout, so a typo or a path that
+// leaves the repository still fails the sync instead of publishing a dead link.
+function repoFileUrl(sourceDirInRepo) {
+  return (path) => {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(path);
+    } catch {
+      return null;
+    }
+    const repoPath = posix.normalize(posix.join(sourceDirInRepo, decoded));
+    if (repoPath === "." || repoPath === ".." || repoPath.startsWith("../") || posix.isAbsolute(repoPath)) {
+      return null;
+    }
+    if (!lstatSync(join(sourceDir, repoPath), { throwIfNoEntry: false })?.isFile()) return null;
+    return `${ATTEST_BLOB_BASE}/${tag}/${repoPath.split("/").map(encodeURIComponent).join("/")}`;
+  };
+}
+
+function withSiteLinks(markdown, guideBase, sourceDirInRepo, label) {
+  const rewritten = rewriteGuideLinks(markdown, guideSlugs, guideBase, repoFileUrl(sourceDirInRepo));
   if (rewritten.problems.length > 0) fail(`${label}:\n  ${rewritten.problems.join("\n  ")}`);
   return rewritten.markdown;
 }
-const changelogBody = withSiteLinks(changelog.body, "docs/guides/", "CHANGELOG.md");
+const changelogBody = withSiteLinks(changelog.body, "docs/guides/", "", "CHANGELOG.md");
 
 const guideOutputs = guides.map((entry) => {
   const sourcePath = `docs/guides/${entry.name}`;
@@ -128,7 +150,7 @@ const guideOutputs = guides.map((entry) => {
   }
   const guide = splitTitle(readRegularFile(join(guidesSource, entry.name), sourcePath), sourcePath);
   assertSafeMarkdown(guide.body, sourcePath);
-  const body = withSiteLinks(guide.body, "", sourcePath);
+  const body = withSiteLinks(guide.body, "", "docs/guides", sourcePath);
   const frontmatter = [
     "---",
     `title: ${JSON.stringify(guide.title)}`,

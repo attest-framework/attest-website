@@ -11,9 +11,13 @@ const SCHEME_OR_ROOTED = /^([a-z][a-z0-9+.-]*:|\/|#)/i;
 
 // `guideBase` is the path from the source file's directory to docs/guides/:
 // "" for a guide, "docs/guides/" for CHANGELOG.md at the repository root.
+// `repoFileUrl(path)` resolves any other relative link target (path relative
+// to the source file, no anchor) to an absolute URL of that file in the attest
+// repository, or returns null when no such file exists.
 // Returns the rewritten Markdown and a problem for every relative link that has
-// no website page, so the caller can fail instead of publishing a dead link.
-export function rewriteGuideLinks(markdown, guideSlugs, guideBase) {
+// neither a website page nor a repository file, so the caller can fail instead
+// of publishing a dead link.
+export function rewriteGuideLinks(markdown, guideSlugs, guideBase, repoFileUrl = () => null) {
   const escapedBase = guideBase.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   const guideLink = new RegExp(`^(?:\\./)?${escapedBase}([a-z0-9][a-z0-9-]*)\\.md(#[^\\s]*)?$`);
   const edits = [];
@@ -22,7 +26,16 @@ export function rewriteGuideLinks(markdown, guideSlugs, guideBase) {
     if (typeof node.url === "string" && node.url !== "" && !SCHEME_OR_ROOTED.test(node.url)) {
       const line = node.position.start.line;
       const match = guideLink.exec(node.url);
-      if (match === null || !guideSlugs.has(match[1])) {
+      let href = null;
+      if (match !== null && guideSlugs.has(match[1])) {
+        href = `/sdk-guides/${match[1]}/${match[2] ?? ""}`;
+      } else {
+        const hash = node.url.indexOf("#");
+        const path = hash === -1 ? node.url : node.url.slice(0, hash);
+        const fileUrl = repoFileUrl(path);
+        if (fileUrl !== null) href = fileUrl + (hash === -1 ? "" : node.url.slice(hash));
+      }
+      if (href === null) {
         problems.push(`line ${line}: relative link ${JSON.stringify(node.url)} has no website page`);
       } else {
         const searchFrom =
@@ -33,7 +46,6 @@ export function rewriteGuideLinks(markdown, guideSlugs, guideBase) {
         if (start === -1 || start >= node.position.end.offset) {
           problems.push(`line ${line}: cannot locate link target ${JSON.stringify(node.url)} in source`);
         } else {
-          const href = `/sdk-guides/${match[1]}/${match[2] ?? ""}`;
           edits.push({ start, end: start + node.url.length, href });
         }
       }
