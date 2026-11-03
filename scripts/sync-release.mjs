@@ -8,6 +8,7 @@
 // Synced files must stay `.md`, never `.mdx`: MDX compiles `{expressions}`,
 // `import` and `export` into JavaScript that runs at build time, so an `.mdx`
 // copy would execute content from another repository.
+import { execFileSync } from "node:child_process";
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,6 +96,37 @@ if (sourceDir === undefined || tag === undefined || sha === undefined) {
 if (!TAG_PATTERN.test(tag)) fail(`invalid tag ${JSON.stringify(tag)}`);
 if (!SHA_PATTERN.test(sha)) fail(`invalid commit sha ${JSON.stringify(sha)}`);
 
+// The release workflow checks attest out sparsely (CHANGELOG.md and docs/guides/
+// only), so a linked repository file is looked up in the checkout's commit tree,
+// not on disk. checkoutCommit is null when sourceDir is not a git checkout (a
+// local copy); files are then looked up on disk.
+function git(args) {
+  return execFileSync("git", ["--literal-pathspecs", "-C", sourceDir, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+}
+let checkoutCommit = null;
+try {
+  checkoutCommit = git(["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+} catch {
+  checkoutCommit = null;
+}
+if (checkoutCommit !== null && checkoutCommit !== sha) {
+  fail(`checkout is at ${checkoutCommit}, not the release commit ${sha}`);
+}
+
+function isRegularFile(repoPath) {
+  if (checkoutCommit === null) {
+    return lstatSync(join(sourceDir, repoPath), { throwIfNoEntry: false })?.isFile() === true;
+  }
+  const entry = git(["ls-tree", "-z", "HEAD", "--", repoPath]).split("\0")[0];
+  const tab = entry.indexOf("\t");
+  if (tab === -1 || entry.slice(tab + 1) !== repoPath) return false;
+  const [mode, type] = entry.slice(0, tab).split(" ");
+  return type === "blob" && (mode === "100644" || mode === "100755");
+}
+
 // Read and validate every source before writing, so a bad input leaves the
 // website untouched.
 const changelog = splitTitle(
@@ -118,8 +150,8 @@ const guideSlugs = new Set(guides.map((entry) => entry.name.slice(0, -".md".leng
 // A relative link to another file in attest (a schema, a fixture) has no website
 // page; it becomes a link to that file on GitHub at the release tag. A path that
 // normalizes to a synced guide gets that guide's website route instead. The
-// target must exist as a regular file inside the checkout, so a typo or a path
-// that leaves the repository still fails the sync instead of publishing a dead link.
+// target must be a regular file in the release commit, so a typo or a path that
+// leaves the repository still fails the sync instead of publishing a dead link.
 function repoFileUrl(sourceDirInRepo) {
   return (path) => {
     let decoded;
@@ -135,7 +167,7 @@ function repoFileUrl(sourceDirInRepo) {
     }
     const guide = /^docs\/guides\/([a-z0-9][a-z0-9-]*)\.md$/.exec(repoPath);
     if (guide !== null && guideSlugs.has(guide[1])) return `/sdk-guides/${guide[1]}/`;
-    if (!lstatSync(join(sourceDir, repoPath), { throwIfNoEntry: false })?.isFile()) return null;
+    if (!isRegularFile(repoPath)) return null;
     return `${ATTEST_BLOB_BASE}/${tag}/${repoPath.split("/").map(encodeURIComponent).join("/")}`;
   };
 }
