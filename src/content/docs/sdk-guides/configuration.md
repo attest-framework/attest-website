@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Two exceptions keep their historical behavior: `ATTEST_JUDGE_TIMEOUT_S` falls back to 30 on a non-positive or non-integer value, and `ATTEST_JUDGE_META_EVAL` is enabled only by the exact value `true`.
 

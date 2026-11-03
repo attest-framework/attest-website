@@ -3,7 +3,7 @@ title: "Trace check: integrity and coverage of an OTLP export"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/trace-check.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest trace check` reads an OpenTelemetry trace export (OTLP/JSON, the `ExportTraceServiceRequest` shape that the OTLP file exporter and collectors write) and reports whether its structure can be trusted and which evidence it lacks. `attest trace convert` turns the same export into an Attest trace (schema version 2) that assertions run against.
 
@@ -26,6 +26,8 @@ coverage: missing evidence
 ```
 
 `--json` prints the same report as JSON (`ok`, `issues`, `coverage`, step counts). Pass `-` to read the export from stdin.
+
+`attest trace check` also accepts a capture fixture (`tests/attest/fixtures/<name>.attest.json`): it checks that the fixture decodes, that its trace passes the engine's trace validation and that the captured spans passed trace check at capture time. See [capture.md](/sdk-guides/capture/).
 
 | Exit | Meaning |
 | --- | --- |

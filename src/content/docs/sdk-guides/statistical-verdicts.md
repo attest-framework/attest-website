@@ -3,7 +3,7 @@ title: "Statistical verdicts and cost budgets"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/statistical-verdicts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/statistical-verdicts.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/statistical-verdicts.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A non-deterministic agent can pass a test once and fail it the next time, so one run cannot show that a change made it worse. Attest runs each test a fixed number of times, compares every assertion's pass rate with a pinned baseline using a confidence interval, and returns `pass`, `regressed` or `inconclusive`. Every model call Attest makes for the evaluation reserves its cost against a budget before it is sent, so trials and judges cannot overspend.
 
