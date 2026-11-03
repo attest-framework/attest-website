@@ -61,4 +61,18 @@ describe("rewriteGuideLinks", () => {
     const result = rewriteGuideLinks("[m](missing.md)", slugs, "", () => null);
     assert.deepEqual(result.problems, ['line 1: relative link "missing.md" has no website page']);
   });
+
+  it("never sends images to repoFileUrl, inline or by reference", () => {
+    const seen = [];
+    const resolve = (path) => {
+      seen.push(path);
+      return "https://github.com/o/r/blob/v1/x";
+    };
+    const result = rewriteGuideLinks("![a](../a.png) ![b][img]\n\n[img]: ../b.png\n", slugs, "", resolve);
+    assert.deepEqual(seen, []);
+    assert.deepEqual(result.problems, [
+      'line 1: relative link "../a.png" has no website page',
+      'line 3: relative link "../b.png" has no website page',
+    ]);
+  });
 });

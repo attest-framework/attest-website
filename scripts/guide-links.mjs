@@ -13,7 +13,8 @@ const SCHEME_OR_ROOTED = /^([a-z][a-z0-9+.-]*:|\/|#)/i;
 // "" for a guide, "docs/guides/" for CHANGELOG.md at the repository root.
 // `repoFileUrl(path)` resolves any other relative link target (path relative
 // to the source file, no anchor) to an absolute URL of that file in the attest
-// repository, or returns null when no such file exists.
+// repository, or returns null when no such file exists. Images never use it: a
+// repository page URL is not an image.
 // Returns the rewritten Markdown and a problem for every relative link that has
 // neither a website page nor a repository file, so the caller can fail instead
 // of publishing a dead link.
@@ -22,6 +23,13 @@ export function rewriteGuideLinks(markdown, guideSlugs, guideBase, repoFileUrl =
   const guideLink = new RegExp(`^(?:\\./)?${escapedBase}([a-z0-9][a-z0-9-]*)\\.md(#[^\\s]*)?$`);
   const edits = [];
   const problems = [];
+  const tree = markdownParser.parse(markdown);
+  const imageReferences = new Set();
+  const collectImageReferences = (node) => {
+    if (node.type === "imageReference") imageReferences.add(node.identifier);
+    for (const child of node.children ?? []) collectImageReferences(child);
+  };
+  collectImageReferences(tree);
   const visit = (node) => {
     if (typeof node.url === "string" && node.url !== "" && !SCHEME_OR_ROOTED.test(node.url)) {
       const line = node.position.start.line;
@@ -29,7 +37,10 @@ export function rewriteGuideLinks(markdown, guideSlugs, guideBase, repoFileUrl =
       let href = null;
       if (match !== null && guideSlugs.has(match[1])) {
         href = `/sdk-guides/${match[1]}/${match[2] ?? ""}`;
-      } else {
+      } else if (
+        node.type !== "image" &&
+        !(node.type === "definition" && imageReferences.has(node.identifier))
+      ) {
         const hash = node.url.indexOf("#");
         const path = hash === -1 ? node.url : node.url.slice(0, hash);
         const fileUrl = repoFileUrl(path);
@@ -52,7 +63,7 @@ export function rewriteGuideLinks(markdown, guideSlugs, guideBase, repoFileUrl =
     }
     for (const child of node.children ?? []) visit(child);
   };
-  visit(markdownParser.parse(markdown));
+  visit(tree);
   let output = markdown;
   for (const { start, end, href } of edits.sort((a, b) => b.start - a.start)) {
     output = output.slice(0, start) + href + output.slice(end);

@@ -116,9 +116,10 @@ if (guides.length === 0) fail(`no *.md guides in ${guidesSource}`);
 const guideSlugs = new Set(guides.map((entry) => entry.name.slice(0, -".md".length)));
 
 // A relative link to another file in attest (a schema, a fixture) has no website
-// page; it becomes a link to that file on GitHub at the release tag. The target
-// must exist as a regular file inside the checkout, so a typo or a path that
-// leaves the repository still fails the sync instead of publishing a dead link.
+// page; it becomes a link to that file on GitHub at the release tag. A path that
+// normalizes to a synced guide gets that guide's website route instead. The
+// target must exist as a regular file inside the checkout, so a typo or a path
+// that leaves the repository still fails the sync instead of publishing a dead link.
 function repoFileUrl(sourceDirInRepo) {
   return (path) => {
     let decoded;
@@ -127,10 +128,13 @@ function repoFileUrl(sourceDirInRepo) {
     } catch {
       return null;
     }
+    if (decoded.includes("\0")) return null;
     const repoPath = posix.normalize(posix.join(sourceDirInRepo, decoded));
     if (repoPath === "." || repoPath === ".." || repoPath.startsWith("../") || posix.isAbsolute(repoPath)) {
       return null;
     }
+    const guide = /^docs\/guides\/([a-z0-9][a-z0-9-]*)\.md$/.exec(repoPath);
+    if (guide !== null && guideSlugs.has(guide[1])) return `/sdk-guides/${guide[1]}/`;
     if (!lstatSync(join(sourceDir, repoPath), { throwIfNoEntry: false })?.isFile()) return null;
     return `${ATTEST_BLOB_BASE}/${tag}/${repoPath.split("/").map(encodeURIComponent).join("/")}`;
   };
