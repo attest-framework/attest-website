@@ -3,7 +3,7 @@ title: "From first test to merge gate"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/merge-gate.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.0.0-rc.2 (80ee68aed9138ac40d61eb0c70f0705360c551e1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 This guide takes a project from no tests to a GitHub Actions job that blocks merges on agent regressions. No API key, model or network access is needed: the sample test checks a recorded agent run with deterministic assertions (layers 1–4).
 
@@ -20,7 +20,7 @@ uv run pytest            # 1 passed
 TypeScript:
 
 ```bash
-npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
+npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" "vitest@^4"
 npx attest init
 npx vitest run          # 1 passed
 ```
@@ -79,8 +79,13 @@ uv run attest policy evaluate --report attest-report.json --policy attest.policy
 `attest init --ci github` writes `.github/workflows/attest.yml`:
 
 1. **Run tests** has `continue-on-error: true` and `id: tests`, so a failing test does not stop the job before the report is handled.
-2. **Upload the Attest report**, **Evaluate the merge policy** and **Annotate the pull request** run with `if: always()`. The policy step treats exit 2 as a warning and fails on exit 1.
-3. **Annotate the pull request** uses the `pr-annotate` action at the SDK's release tag. Each failure is annotated at its test's file and line: an inline review comment when that line is in the pull request diff (otherwise the review body lists it with `file:line`), and a workflow annotation either way. It runs only for pull requests from branches of the same repository: a fork's read-only token cannot post reviews, so annotating would fail the job for a reason unrelated to the tests.
-4. **Fail the job when tests failed** checks `steps.tests.outcome == 'failure'` and exits 1, so a red test is never hidden by `continue-on-error`.
+2. **Write the JUnit report** runs `attest report junit --report attest-report.json --out attest-junit.xml`. **Upload the Attest report** uploads both files as the `attest-report` artifact.
+3. **Evaluate the merge policy** treats exit 2 as a warning and fails on exit 1.
+4. **Annotate the pull request** uses the `pr-annotate` action at the SDK's release tag. It posts one summary comment and emits a workflow annotation for each failure and replay miss; see [Annotations and the summary comment](/sdk-guides/annotations/). It runs only for pull requests from branches of the same repository; on a fork's pull request the token is read-only, so the action posts no comment and the summary is in the job summary (annotations still appear).
+5. **Fail the job when tests failed** checks `steps.tests.outcome == 'failure'` and exits 1, so a red test is never hidden by `continue-on-error`.
 
-The job needs `pull-requests: write` for the review comments; the template sets it.
+Steps 2 to 4 run with `if: always()`.
+
+Permissions are minimal. The workflow grants `contents: read`, and the job adds `pull-requests: write`, which the summary comment needs.
+
+`pr-annotate` also evaluates a policy itself when you pass `policy:`. Its `exit-code` output is the evaluator's exit code; the step fails on 1 (unless `fail-on-violation: false`) and on any code other than 0, 1 and 2. The workflow above evaluates the policy in its own step instead, so the action runs without `policy:`.
