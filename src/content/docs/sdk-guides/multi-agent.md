@@ -3,7 +3,7 @@ title: "Multi-Agent Testing Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/multi-agent.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest provides first-class support for testing multi-agent systems through hierarchical trace trees, cross-agent assertions, and delegation tracking. All multi-agent assertions are Layer 7 — deterministic, free, and instant.
 

@@ -3,7 +3,7 @@ title: "Replay: run the agent's real code with zero model calls"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/replay.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/replay.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/replay.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A fixture captured by [`attest capture`](/sdk-guides/capture/) holds every model exchange the run made. Replay serves those recorded responses to your agent's real code through a local proxy, so a test runs the agent end to end, in CI, with no provider key and no live call. Each test ends in one of three ways:
 

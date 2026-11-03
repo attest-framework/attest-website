@@ -3,7 +3,7 @@ title: "Adapter Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/framework-adapters.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
 
