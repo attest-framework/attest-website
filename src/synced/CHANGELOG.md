@@ -1,8 +1,34 @@
-<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 All notable changes to Attest are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/). One `VERSION` covers the engine, the Python SDK (`attest-ai`) and the TypeScript SDKs (`@attest-ai/core`, `@attest-ai/vitest`); PyPI shows pre-releases in PEP 440 form (`1.0.0-rc.1` → `1.0.0rc1`).
 
 ## [Unreleased]
+
+## [1.0.0-rc.4] — 2026-11-04
+
+Fourth release candidate, themed "Agent-native": coding agents operate attest without the website through `--json` output with published schemas and stable exit codes, offline guides (`attest guide`), installable skills and plugins, and an MCP server whose closed contract grammar drafts and checks contracts. `attest mutate` measures how much of an agent's behavior the suite would actually catch.
+
+### Added
+
+- `attest mutate <fixture.attest.json...> [--contracts DIR] [--seed N] [--max-mutants N] [--json]` tests the tests: it builds behavior mutants of each fixture (drop, duplicate or reorder tool calls, perturb arguments, inject tool errors, alter world effects, truncate output), evaluates the suite's deterministic contracts on every mutant at no model cost, and reports a mutation score, each surviving mutant and a verified contract that would kill it. The mutant set is identical across runs for a fixed seed. `--json` validates against `cli/mutate.schema.json`; exit 0 report produced, 1 no contract applies to any fixture, 2 usage or load error. See `docs/guides/mutation.md`.
+- `ATTEST_CONTRACTS_DIR` makes each engine process record the assertion specs it evaluates (one `0600` NDJSON file per process, no traces or outputs) so `attest mutate --contracts` can replay a suite's contracts. `evaluate_batch` takes an optional `context: {test_id, file, line}` that the pytest plugin and the Vitest integration send for the running test; the engine records it next to each spec and does not otherwise use it.
+- The policy rule `min_mutation_score: {score, severity}` with `attest policy evaluate --mutation <mutate.json>`: a score below the threshold exits 1 (`block`) or 2 (`warn`). A policy with the rule and no `--mutation` is a load error (exit 3).
+- `attest guide [<topic>]` prints the shipped guides (`docs/guides/*.md`) from the engine binary, offline; `--json` gives `{topics:[{name,title}]}` or `{topic,title,markdown}`. New guides: `cli` (agent-facing CLI reference, exit-code table) and `agents` (skills, `init --skills`, plugins). Guides are staged into the engine module by `go generate ./internal/assets/` (`make generate`) and embedded; a test in `go test ./...` fails when the staged copies drift.
+- Every engine command and subcommand accepts `--json` and then writes exactly one JSON document to stdout on success; on a usage, load or runtime error it writes nothing to stdout and the exit code plus stderr describe the error. Schemas are in `proto/attest/v1/cli/` (`doctor` keeps `proto/attest/v1/doctor.schema.json`) with valid and invalid fixtures in `protocol-tests/cli/`, tested in Go, Python and TypeScript. `capture`, `replay` and `world` with `-- <command>` send the command's stdout to stderr under `--json` and print one result object that carries its `exit_code`. `attest help --json` lists every command with its schema and exit codes. `attest init --json` (both SDKs) prints `{created, updated, skipped}`, and the SDKs add `init` to `attest help --json`.
+- Each command declares its exit codes in the registry; the table in `docs/guides/cli.md` is checked against it by a test.
+- `attest skills list|install [--dir D] [--json]` writes the embedded `attest` and `attest-verify-generator` skills to `.agents/skills/` (Codex, Cursor) and `.claude/skills/` (Claude Code), touching only attest-owned files. It validates every destination before writing, follows directory symlinks that resolve inside `--dir` (writing each real file once) and refuses symlinks that resolve outside it or symlinked skill files, writing nothing. `attest init --skills` (Python and TypeScript, alone or with `--ci github`) calls it. The `attest` skill routes to writing contracts, capturing an incident, debugging a failure, CI setup and migrating from Promptfoo or DeepEval with a `MIGRATION.md` progress file; `attest-verify-generator` interviews a repository and writes `verify-<agent>` skills.
+- `attest mcp [--root D]` serves attest to coding agents over MCP on stdio with a fixed toolset: `trace_check`, `evaluate`, `explain_failure`, `draft_contract`, `run_contract` and `fixture_info`. It is read-only and offline (deterministic layers only; judge and embedding assertions return `not_evaluated` with `provider_not_configured`) and confined to the project root: paths are resolved through symlinks, files are capped at 32 MiB. `run_contract` parses statements such as `tool_cardinality("issue_refund", per="order_id", at_most=1)` with a closed grammar, never as code, and returns per-statement results plus the Python and TypeScript test lines. `attest mcp --tools --json` prints the tool list; `attest mcp install --dir D --command <json argv>` and `attest init --mcp` (Python and TypeScript) write `.mcp.json`, `.cursor/mcp.json` and `.codex/config.toml` without touching other servers. Guide: `mcp`.
+- Claude Code, Cursor and Codex plugin manifests (`.claude-plugin/`, `.cursor-plugin/`, `.codex-plugin/`) publish the same `skills/`; they are generated from `VERSION` and one metadata source by `go generate` and checked for drift. In Claude Code: `/plugin marketplace add attest-framework/attest`.
+
+### Security
+
+- JSON Schema assertions (`type: schema`) resolve `$ref` inside the schema document only: `file://` and `http://` references no longer load, for every engine caller. Previously a schema could read any local file the engine could, and its compile errors could echo part of it. The compiled-schema cache is bounded.
+
+### Changed
+
+- `attest policy evaluate` exits 3 on usage errors and when the policy, report or baseline fails to load (previously 2 and 1), so they cannot be read as a warning or a block. Verdicts keep 0 pass, 1 block, 2 warn.
+- `attest cache`, `baseline`, `version` and `policy evaluate` reject unexpected arguments; `cache` usage errors exit 2 (previously 1).
+- `attest capture --refresh` also refuses to prompt (exit 2, `--yes` hint) when `CI` is set or `--json` is given.
 
 ## [1.0.0-rc.3] — 2026-11-03
 
@@ -234,7 +260,8 @@ Tagged, not published to registries. No GitHub release was created.
 
 Versions 0.1.0 through 0.6.0 are described in their [GitHub releases](https://github.com/attest-framework/attest/releases); 0.6.1 exists only as a tag. 0.1.0–0.6.0 were published to PyPI; 0.3.0–0.6.0 were also published to npm.
 
-[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0-rc.3...HEAD
+[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0-rc.4...HEAD
+[1.0.0-rc.4]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.1

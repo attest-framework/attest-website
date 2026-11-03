@@ -3,7 +3,7 @@ title: "Policies"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/policies.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A policy is the file that decides whether a report lets a pull request merge. `attest policy evaluate` reads a report-v2 and a policy, prints the violations as JSON, and exits with the verdict:
 
@@ -17,7 +17,7 @@ uv run attest policy evaluate --policy attest.policy.yaml --report attest-report
 | 1 | A rule with severity `block` was violated |
 | 2 | Only rules with severity `warn` were violated |
 
-A policy or report that cannot be read or is invalid exits 1 with the error on stderr; leaving out `--policy` or `--report` exits 2.
+A policy or report that cannot be read or is invalid exits 3 with the error on stderr; leaving out `--policy` or `--report` also exits 3. Exit 3 is neither a warning (2) nor a block (1), and CI steps that treat only 0, 1 and 2 as verdicts fail on it.
 
 ## Write a policy
 
@@ -47,6 +47,10 @@ block_on_regression: true
 
 # Needs --baseline and fixed-N trials: statistical comparison of pass rates.
 regression: { confidence: 0.95, tolerance: 0.05 }
+
+# Needs --mutation <mutate.json>: the mutation score from `attest mutate --json`
+# must reach this ratio (0 to 1). Severity defaults to the policy severity.
+min_mutation_score: { score: 0.8, severity: block }
 ```
 
 Every field is optional. An empty policy has no rules to block on, but the `not_evaluated` rule still applies, so it exits 2 when any assertion was not evaluated. A severity other than `block` or `warn` is a load error, so a typo cannot quietly weaken a rule. A `.json` policy takes the same fields.
@@ -56,6 +60,17 @@ Every field is optional. An empty policy has no rules to block on, but the `not_
 An assertion the engine could not judge (`provider_unavailable`, `provider_not_configured`, `simulation`, `missing_evidence`, `short_circuited`, `budget_exhausted`, `judge_abstained`, `replay_miss`) has status `not_evaluated` and a reason. It is never counted as a pass, and it is excluded from pass rates. The policy's `not_evaluated` severity decides what it costs: the default `warn` exits 2 so an outage or a missing key does not block merges; `not_evaluated: block` makes it exit 1.
 
 A [replay miss](/sdk-guides/replay/#what-a-miss-says) is `not_evaluated` with reason `replay_miss` when the test could not go live, and a failed test when the replay is strict.
+
+## Mutation score
+
+`min_mutation_score` gates on how well the suite's contracts catch behavior mutants of your fixtures ([mutation](/sdk-guides/mutation/)). Pass the `--json` output of `attest mutate`:
+
+```bash
+uv run attest mutate tests/attest/fixtures/*.attest.json --contracts .attest/contracts --json > mutation.json
+uv run attest policy evaluate --policy attest.policy.yaml --report attest-report.json --mutation mutation.json
+```
+
+A score below `score` is a violation named `min_mutation_score` with the rule's severity, so it exits 1 (`block`) or 2 (`warn`). A report with no score (no mutant could be scored) cannot meet a threshold and is also a violation. `score` must be between 0 and 1 and is required; a policy that sets the rule without `--mutation` is a load error (exit 3), so the gate cannot be skipped by forgetting the file. `--mutation` without the rule changes nothing.
 
 ## Baselines
 
@@ -71,8 +86,9 @@ The engine renders report-v2 files for CI. Each command takes `--report` one or 
 uv run attest report junit --report attest-report.json --out junit.xml
 
 # Markdown summary for a PR comment.
-set +e   # policy evaluate exits 1 or 2 on violations; keep going so the summary renders
+set +e   # policy evaluate exits 1 or 2 on violations; keep going so the summary renders (exit 3 is an error: stop)
 uv run attest policy evaluate --policy attest.policy.yaml --report attest-report.json > policy-result.json
+[ $? -le 2 ] || exit 1
 uv run attest report summary --report attest-report.json --policy-result policy-result.json
 
 # Failures and replay misses as JSON rows, for annotations.

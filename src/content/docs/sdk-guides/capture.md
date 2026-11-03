@@ -3,7 +3,7 @@ title: "Capture: turn a run into a regression fixture"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/capture.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/capture.md at v1.0.0-rc.3 (bf735dfaea4aa9c7a2f847246984664c9a4c9405) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/capture.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest capture` runs your agent once, records what it did (its trace and every model call it made), removes secrets, and writes a fixture: `tests/attest/fixtures/<name>.attest.json`. It drafts deterministic contracts from the run, checks them against it, and writes a test file that runs those contracts. Capture an incident and you get a test that reproduces it; capture a good run and you get a test that keeps it good.
 
