@@ -3,7 +3,7 @@ title: "Agent-facing CLI"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/cli.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest` is built for coding agents as well as people. Every command is discoverable offline, prints one JSON document on request, and returns a documented exit code. `attest` in each SDK implements `init` itself and forwards every other command to `attest-engine`; the contract below applies to both spellings.
 
@@ -74,8 +74,8 @@ The table is checked against the engine's command registry by a test; a change t
 | `calibrate` | 0 | success |
 | `calibrate` | 1 | the labels file could not be read, has no judge_score rows or no usable agreement, or persisting failed |
 | `calibrate` | 2 | usage error |
-| `capture` | 0 | the fixture is verified, or --check-redaction found no secrets; the command's own exit code is recorded, not propagated |
-| `capture` | 1 | the fixture is not verified or was not written, the capture failed, or --check-redaction found secrets |
+| `capture` | 0 | the fixture is verified or captured with nothing to verify, or --check-redaction found no secrets; the command's own exit code is recorded, not propagated |
+| `capture` | 1 | the fixture is not verified (a drafted contract failed, the trace check failed, no step was mapped, --expect-fail drafted nothing, or nothing was drafted while the command exited non-zero or recorded no model call) or was not written, the capture failed, or --check-redaction found secrets |
 | `capture` | 2 | usage error, an invalid --world file, or a --refresh that was not confirmed |
 | `doctor` | 0 | success |
 | `doctor` | 1 | configuration error the JSON-RPC server would refuse to start with |

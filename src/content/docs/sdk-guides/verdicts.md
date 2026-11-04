@@ -3,7 +3,7 @@ title: "Verdicts: pass, fail, skip"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/verdicts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest reports one of four statuses for every assertion you request, and turns them into a test outcome only after the whole batch has run.
 

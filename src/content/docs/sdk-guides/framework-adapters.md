@@ -3,7 +3,7 @@ title: "Adapter Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/framework-adapters.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
 
@@ -113,7 +113,7 @@ trace = adapter.trace_from_response(
 ### LangChain
 
 ```bash
-uv add 'attest-ai[langchain]>=1.0.0rc1'
+uv add 'attest-ai[langchain]>=1.0.0'
 ```
 
 **Context manager usage:**
@@ -158,7 +158,7 @@ trace = handler.build_trace()
 ### Google ADK
 
 ```bash
-uv add 'attest-ai[google-adk]>=1.0.0rc1'
+uv add 'attest-ai[google-adk]>=1.0.0'
 ```
 
 **Async capture:**
@@ -201,7 +201,7 @@ trace = GoogleADKAdapter.from_events(
 ### LlamaIndex
 
 ```bash
-uv add 'attest-ai[llamaindex]>=1.0.0rc1'
+uv add 'attest-ai[llamaindex]>=1.0.0'
 ```
 
 **Context manager usage:**
@@ -244,7 +244,7 @@ trace = handler.build_trace(query="...", response="...")
 ### OpenTelemetry
 
 ```bash
-uv add 'attest-ai[otel]>=1.0.0rc1'
+uv add 'attest-ai[otel]>=1.0.0'
 ```
 
 **From collected spans or an OTLP/JSON export:**

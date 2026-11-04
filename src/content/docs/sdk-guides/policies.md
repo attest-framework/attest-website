@@ -3,7 +3,7 @@ title: "Policies"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/policies.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A policy is the file that decides whether a report lets a pull request merge. `attest policy evaluate` reads a report-v2 and a policy, prints the violations as JSON, and exits with the verdict:
 

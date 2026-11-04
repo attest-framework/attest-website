@@ -3,13 +3,13 @@ title: "World fixtures: assert on what the agent did to the system it acts on"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/world-fixtures.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/world-fixtures.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/world-fixtures.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A trace records what an agent said and which tools it called. It cannot tell whether the refund API ended up with one refund or two. A *world* is a local, stateful HTTP stand-in for that system. The agent's real HTTP client talks to it, the world keeps the records the agent created, and an `effect` assertion checks the final state.
 
 ```bash
-uv add "attest-ai>=1.0.0rc1"
-npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" "vitest@^4"
+uv add "attest-ai>=1.0.0"
+npm install -D "@attest-ai/core@>=1.0.0" "@attest-ai/vitest@>=1.0.0" "vitest@^4"
 ```
 
 ## world.yaml
