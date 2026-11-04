@@ -1,8 +1,37 @@
-<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 All notable changes to Attest are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/). One `VERSION` covers the engine, the Python SDK (`attest-ai`) and the TypeScript SDKs (`@attest-ai/core`, `@attest-ai/vitest`); PyPI shows pre-releases in PEP 440 form (`1.0.0-rc.1` → `1.0.0rc1`).
 
 ## [Unreleased]
+
+## [1.0.0-rc.5] — 2026-11-04
+
+Fifth release candidate, themed "Parity and reach": the TypeScript SDK gains the simulation helpers and plugin discovery Python has, with a generated parity matrix that fails the test suites on an undocumented gap; `attest capture` records runs from Pydantic AI, the Vercel AI SDK, Mastra, the OpenAI Agents SDK (Python), the Claude Agent SDK and LangGraph (Python) through their OpenTelemetry instrumentation; and `attest view` renders a self-contained offline failure page with the failing span highlighted and a baseline diff.
+
+### Added
+
+- `attest view <report.json...> [--baseline <report.json>...] [--mutation <mutate.json>] [--out FILE] [--no-open] [--json]` writes one self-contained offline HTML page: the test list, the trace tree with the failing span highlighted, expected versus actual, replay or live provenance, cost, a baseline-versus-head diff (pass rate, cost, latency, changed tool sequences) and surviving mutants. The page has no JavaScript and no external resources, carries a `default-src 'none'` Content-Security-Policy, escapes all report content and bounds every field and the page size. It opens in a browser only on a terminal outside CI. `--json` schema `cli/view.schema.json`; exit 0 written, 2 usage or input error. Guide: `docs/guides/viewer.md`.
+- `ATTEST_REPORT_TRACES=1` makes the pytest plugin and the Vitest reporter add a top-level `traces` map (trace id to trace-v2) and a `trace_id` on each result row to report-v2. Both fields are optional in `report-v2.schema.json`; `report_version` is unchanged. Traces hold prompts, outputs and tool arguments, so the variable is off by default.
+- `attest init --ci github` (Python and TypeScript) adds a `Write the failure viewer` step and uploads `attest-report.html` in the `attest-report` artifact. The test step carries `ATTEST_REPORT_TRACES: "1"` commented out with a warning: traces are not redacted and artifacts of public repositories are downloadable by any signed-in GitHub user, so enable it only on private repositories.
+- Framework capture through OpenTelemetry, with no attest-specific adapter: `docs/guides/capture.md` gains a Frameworks section with the instrumentation switch, tested versions and caveats for Pydantic AI, the Vercel AI SDK, Mastra, the OpenAI Agents SDK (Python), the Claude Agent SDK (Python and TypeScript) and LangGraph (Python). Golden OTLP fixtures for each route join `protocol-tests/trace-v2/otlp/`.
+- The OTLP parser keeps `tool.output` span events (the first four per span, among the first 256 events); all other events are never read. A malformed `tool.output` event is dropped and `trace check` warns `malformed_event`. Claude Code records a tool's result there.
+- Claude Code native traces (beta): `claude_code.llm_request` is a model call with its native model, token and cache-token attributes; `claude_code.tool` takes its result from its `tool.output` event; `claude_code.tool.execution` and `claude_code.tool.blocked_on_user` are not steps. A native attribute of the wrong type is skipped with a `malformed_native_attribute` warning from `trace check` instead of failing conversion.
+- Tool spans without `gen_ai.tool.call.arguments` or `gen_ai.tool.call.result` fall back to `gen_ai.prompt` and `gen_ai.completion`, decoding LangSmith's result wrapper shapes on LangSmith spans.
+- TypeScript simulation helpers in `@attest-ai/core`: `scenario`, `faultInject`, `mockTool`, `MockToolRegistry` and `repeat`, with `ScenarioResult` and `RepeatResult` aggregating verdicts like Python's. `TraceBuilder.addToolCall` returns the active mock's result. Guide: [simulation](/sdk-guides/simulation/).
+- TypeScript `useAttest().enforce(verdict)` and `enforceOutcome` accept a `ScenarioResult` or `RepeatResult` as well as an `AgentResult` (fail with diagnostics, skip with the not-evaluated reasons, strict mode fails skips), as Python's `attest.enforce` does.
+- TypeScript plugin discovery: `loadPackagePlugins(registry, projectRoot?)` loads plugins that an installed dependency declares in `package.json` under `"attest": {"plugins": [...]}`; `registerPlugin` mirrors Python's `register_plugin`.
+- A parity matrix, [docs/guides/parity.md](/sdk-guides/parity/), generated from both SDKs' public surfaces (`sdks/parity/`). The existing Python and TypeScript test commands fail on a Python capability with no TypeScript counterpart or documented exception, on a stale exception, and when the snapshots or the guide are out of date (regenerate with `ATTEST_UPDATE_PARITY=1`).
+
+### Changed
+
+- A `tool_cardinality` check that fails on `max` now sets `trace_node_path` to `steps[N]`, the first call over the limit, instead of `trace.tool_cardinality`; a `min` violation keeps the old path. Report-v2 rows and the SDK diagnostics output (`trace path:`) show the new value; `attest report rows` output does not change.
+- A span whose `gen_ai.operation.name` is present but unknown (`chain`, `agent_step`, `unknown`, ...) is no longer a step; its children still attach to the nearest enclosing step. Spans with no operation attribute keep the attribute heuristics.
+- `attest capture` does not verify a fixture where no `llm_call` or `tool_call` step was mapped (exit 1, with the cause and a pointer to the capture guide). The `trace check` `no_genai_spans` message points to the same guide section.
+
+### Fixed
+
+- Finish reasons `tool-calls` (Vercel AI SDK, Mastra) and a JSON array in a string, as Mastra records it, count as tool requests in `trace check`; it no longer warns `unrequested_tool` on those exports.
+- TypeScript `executePluginAssertion` clears its timeout timer when the plugin finishes, so a completed assertion no longer holds the process open for the timeout.
 
 ## [1.0.0-rc.4] — 2026-11-04
 
@@ -260,7 +289,8 @@ Tagged, not published to registries. No GitHub release was created.
 
 Versions 0.1.0 through 0.6.0 are described in their [GitHub releases](https://github.com/attest-framework/attest/releases); 0.6.1 exists only as a tag. 0.1.0–0.6.0 were published to PyPI; 0.3.0–0.6.0 were also published to npm.
 
-[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0-rc.5...HEAD
+[1.0.0-rc.5]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.2
