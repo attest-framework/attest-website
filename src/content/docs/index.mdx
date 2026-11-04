@@ -109,7 +109,7 @@ Guides: [replay](/sdk-guides/replay/) and [world fixtures](/sdk-guides/world-fix
 
 ### 5. Fix it: the merged PR
 
-[PR #11](https://github.com/attest-framework/refund-desk/pull/11) sends an `Idempotency-Key` and checks the refund status after a timeout. The same replay test now passes, and the run summary shows what it cost:
+[PR #11](https://github.com/attest-framework/refund-desk/pull/11) sends an `Idempotency-Key` and checks the refund status after a timeout. Because the fixed agent's tool results change its model requests, the PR also re-records the fixture from the fixed agent (`make capture`); replaying the fixed agent against the original incident fixture would be a strict replay miss. The replay test now passes, and the run summary shows what it cost:
 
 ```bash
 pytest tests/replay --attest-replay=strict --attest-egress=block
@@ -122,7 +122,7 @@ attest replay: 4 replayed · 0 live model calls · $0.00
 
 ### 6. Block the regression
 
-A pull request that reverts the fix turns the same tests red. [PR #12](https://github.com/attest-framework/refund-desk/pull/12) is that regression, closed unmerged: the effect contract fails, `pr-annotate` puts an annotation on the failing test's file and line and updates one summary comment, and the policy exits 1 so the merge is blocked. Guides: [merge gate](/sdk-guides/merge-gate/), [policies](/sdk-guides/policies/), [annotations](/sdk-guides/annotations/), [baselines](/sdk-guides/baselines/) and [selection](/sdk-guides/selection/).
+A pull request that reverts the fix turns the same tests red. [PR #12](https://github.com/attest-framework/refund-desk/pull/12) is that regression, closed unmerged: the effect test fails on the effect contract (`effect violated: 2 refunds for O-1042 (expected 1)`), the replay tests report a replay miss (`messages changed`, because the reverted agent's tool results differ from the re-recorded fixture), `pr-annotate` puts an annotation on the failing test's file and line and updates one summary comment, and the policy exits 1 so the merge is blocked. Guides: [merge gate](/sdk-guides/merge-gate/), [policies](/sdk-guides/policies/), [annotations](/sdk-guides/annotations/), [baselines](/sdk-guides/baselines/) and [selection](/sdk-guides/selection/).
 
 | Policy exit | Meaning |
 |---|---|
@@ -161,7 +161,7 @@ npx attest init --mcp         # TypeScript
 attest view <report.json...> [--baseline <report.json>...] [--mutation <mutate.json>] [--out FILE] [--no-open] [--json]
 ```
 
-[PR #22](https://github.com/attest-framework/refund-desk/pull/22) carries the page for the blocked regression as a CI artifact. Python and TypeScript return the same verdict for every contract; the demo checks this with `make check-parity`.
+[PR #22](https://github.com/attest-framework/refund-desk/pull/22) carries the page for the blocked regression as the `attest-report-html` CI artifact. CI artifacts are time-limited (this one expires 2027-02-02); `make view` in refund-desk regenerates the page locally. Python and TypeScript return the same verdict for every contract; the demo checks this with `make check-parity`.
 
 ## The 8-Layer Assertion Pipeline
 
