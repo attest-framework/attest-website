@@ -1,9 +1,9 @@
 ---
 title: Attest Framework
-description: Test your AI agents like you test your code. 8-layer assertion pipeline, 11 framework adapters, multi-agent support.
+description: Turn a real agent run or incident into a verified fixture, replay the agent's real code in PR CI with zero model calls, and gate merges on pass, fail or not evaluated.
 template: splash
 hero:
-  tagline: Test your AI agents like you test your code
+  tagline: From incident to regression test. Replay your agent's real code in CI with zero model calls.
   image:
     file: ../../assets/logo.svg
   actions:
@@ -15,17 +15,157 @@ hero:
       link: /getting-started/typescript/
       icon: right-arrow
       variant: minimal
+    - text: Run the demo (refund-desk)
+      link: https://github.com/attest-framework/refund-desk
+      icon: external
+      variant: minimal
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 import PipelineDiagram from '@components/PipelineDiagram.astro';
 import ComparisonTable from '@components/ComparisonTable.astro';
 
-## Why Attest?
+## From incident to regression test
 
-**57% of organizations run AI agents in production without systematic testing.** Most testing tools force expensive LLM-as-judge calls for every assertion. Attest takes a different approach: an 8-layer graduated assertion pipeline that starts with free deterministic checks and only escalates to costly LLM evaluation when cheaper layers can't answer the question.
+A real run or incident becomes a verified fixture with `attest capture`. PR CI replays your agent's real code against that fixture with zero model calls and returns one of three results to a policy gate: **pass**, **fail**, or **not evaluated** with a reason. It works the same in Python and TypeScript.
+
+The walk-through below follows one story from [refund-desk](https://github.com/attest-framework/refund-desk), a synthetic demo: a support agent refunds a customer twice after a payment timeout (INC-1042). No paid model API is called anywhere, and every command and output on this page is copied from the demo or from the linked guides. The demo installs attest `1.0.0-rc.5`; the commands below use `uv run attest` for Python and `npx attest` for TypeScript.
+
+### 1. The incident
+
+[Issue #2](https://github.com/attest-framework/refund-desk/issues/2): the payments API timed out after committing a refund, the agent called `issue_refund` again without an idempotency key, and the customer was refunded twice. The agent's tests were green, because they assert only the reply, "Your refund of $84.00 has been processed.", and the reply never changed. The ledger tells the real story:
+
+```text
+Payments ledger after the py agent (synthetic)
+  refund   order      amount  idempotency key
+  R-0001   O-1042     $84.00  -
+  R-0002   O-1042     $84.00  -
+  O-1042: 2 refunds, $168.00 total (order amount $84.00)
+```
+
+### 2. Check the trace
+
+`attest trace check` reads the incident's OpenTelemetry export and reports whether its structure can be trusted and what evidence it lacks. Guide: [trace check](/sdk-guides/trace-check/).
+
+```bash
+uv run attest trace check incidents/INC-1042/trace.py.otlp.json
+```
+
+```text
+trace check incidents/INC-1042/trace.py.otlp.json
+trace 29478f3e0a07ff5725faf3112a8e3663: 10 spans, attest trace schema v2
+steps: 5 llm_call, 4 tool_call; 1 turn, 0 handoffs, 1 retry
+structure: OK
+coverage: missing evidence
+  cost     5 of 5 llm_call spans lack gen_ai.usage.cost
+  content  5 of 5 llm_call spans lack gen_ai.input.messages / gen_ai.output.messages
+```
+
+The retry is the second `issue_refund` call. A behavior contract states the rule INC-1042 broke over the trace's tool calls, not the reply. Guide: [behavior contracts](/sdk-guides/behavior-contracts/).
+
+```python
+expect(trace).tool_cardinality("issue_refund", per="order_id", at_most=1)
+```
+
+```typescript
+attestExpect(trace).toolCardinality("issue_refund", { per: "order_id", atMost: 1 });
+```
+
+### 3. Capture it
+
+`attest capture` runs the agent once, records its trace and every model call, removes secrets, drafts contracts from the run and checks them against it. Guide: [capture](/sdk-guides/capture/).
+
+```bash
+uv run attest capture --name inc-1042 --expect-fail -- make incident
+npx attest capture --name inc-1042 --expect-fail -- npm run incident
+```
+
+```text
+capture inc-1042: tests/attest/fixtures/inc-1042.attest.json
+  trace: 5 llm_call, 4 tool_call; trace check OK
+  exchanges: 5 recorded (openai chat_completions ×5)
+  contracts:
+    pass       tools-called                               trajectory (superset) matches [lookup_order issue_refund notify_customer]
+    pass       order-lookup_order-before-issue_refund     lookup_order (step 1) precedes issue_refund (step 3)
+    pass       order-issue_refund-before-notify_customer  issue_refund (step 3) precedes notify_customer (step 7)
+    pass       cardinality-lookup_order-per-order_id      lookup_order within max 1 for each of 1 order_id value(s)
+    hard_fail  cardinality-issue_refund-per-order_id      issue_refund called 2× for order_id=O-1042 (max 1)
+    pass       cardinality-notify_customer-per-order_id   notify_customer within max 1 for each of 1 order_id value(s)
+  verified: incident reproduction; expected failure: cardinality-issue_refund-per-order_id
+  test: drafted tests/attest/test_inc_1042.py
+```
+
+The fixture is the incident as a file: trace, recorded model exchanges and drafted contracts. The planted API key and customer email in the demo never reach it.
+
+### 4. Replay it: the failing check
+
+Replay serves the recorded model responses to the agent's real code through a local proxy. The agent runs end to end against a fresh payments world, in CI, with no provider key. Before the fix, the replay test failed with the incident's effect:
+
+```text
+effect violated: 2 refunds for O-1042 (expected 1)
+```
+
+Guides: [replay](/sdk-guides/replay/) and [world fixtures](/sdk-guides/world-fixtures/). A replay test ends as pass, fail, or `not_evaluated: replay_miss`. Change the prompt, tool schemas or model parameters and strict replay fails with the changed component named, instead of guessing.
+
+### 5. Fix it: the merged PR
+
+[PR #11](https://github.com/attest-framework/refund-desk/pull/11) sends an `Idempotency-Key` and checks the refund status after a timeout. The same replay test now passes, and the run summary shows what it cost:
+
+```bash
+pytest tests/replay --attest-replay=strict --attest-egress=block
+```
+
+```text
+tests/replay/test_inc_1042_replay.py .
+attest replay: 4 replayed · 0 live model calls · $0.00
+```
+
+### 6. Block the regression
+
+A pull request that reverts the fix turns the same tests red. [PR #12](https://github.com/attest-framework/refund-desk/pull/12) is that regression, closed unmerged: the effect contract fails, `pr-annotate` puts an annotation on the failing test's file and line and updates one summary comment, and the policy exits 1 so the merge is blocked. Guides: [merge gate](/sdk-guides/merge-gate/), [policies](/sdk-guides/policies/), [annotations](/sdk-guides/annotations/), [baselines](/sdk-guides/baselines/) and [selection](/sdk-guides/selection/).
+
+| Policy exit | Meaning |
+|---|---|
+| 0 | Every rule passed |
+| 1 | A rule with severity `block` was violated |
+| 2 | Only rules with severity `warn` were violated |
+
+### 7. An outage warns, it does not pass or fail
+
+When a judge or embedding provider is configured but unreachable, the assertion is `not_evaluated` with reason `provider_unavailable`. An outage never becomes a pass or a fail. A policy with `not_evaluated: warn` turns it into exit 2; `not_evaluated: block` turns it into exit 1. Guides: [verdicts](/sdk-guides/verdicts/) and [judges](/sdk-guides/judges/).
+
+### 8. Score the tests with mutation
+
+A suite that stays green when behavior breaks protects nothing. `attest mutate` builds behavior mutants of the captured run, runs your contracts against each at no model cost, and reports the share killed. Guide: [mutation](/sdk-guides/mutation/).
+
+```bash
+uv run attest mutate tests/attest/fixtures/*.attest.json --contracts .attest/contracts
+```
+
+On the demo fixture, the three output-only tests score 0.00 (0 killed, 29 survived). Every contract in the suite scores 0.34 (10 killed, 19 survived). The mutant `duplicate issue_refund (order_id=O-1042)` is INC-1042 replayed on the fixed run: output-only tests miss it, `tool_cardinality` kills it.
+
+### 9. Let a coding agent draft the contract
+
+`attest init --mcp` registers a read-only, offline MCP server for Claude Code, Cursor and Codex. The agent drafts a contract from the captured run, checks it, and gets the test lines to paste. `attest init --skills` installs the attest skills. Guides: [MCP](/sdk-guides/mcp/) and [agents](/sdk-guides/agents/). The demo keeps two transcripts: [with the attest skill](https://github.com/attest-framework/refund-desk/blob/main/docs/agent-transcripts/2026-11-04-attest-skill-duplicate-refund-contract.md) and [with the MCP server](https://github.com/attest-framework/refund-desk/blob/main/docs/agent-transcripts/2026-11-04-attest-mcp-inc-1042-contract.md).
+
+```bash
+uv run attest init --mcp      # Python
+npx attest init --mcp         # TypeScript
+```
+
+### 10. Read the failure in the viewer
+
+`attest view` turns the suite reports into one self-contained HTML page: the test list, the trace tree with the failing span highlighted, expected against actual, replay or live provenance, cost and a baseline diff. It needs no server and loads nothing from outside the file. Guide: [viewer](/sdk-guides/viewer/).
+
+```text
+attest view <report.json...> [--baseline <report.json>...] [--mutation <mutate.json>] [--out FILE] [--no-open] [--json]
+```
+
+[PR #22](https://github.com/attest-framework/refund-desk/pull/22) carries the page for the blocked regression as a CI artifact. Python and TypeScript return the same verdict for every contract; the demo checks this with `make check-parity`.
 
 ## The 8-Layer Assertion Pipeline
+
+The replay and gate above run on deterministic checks. The pipeline is the full ladder of checks a contract or test can use, from free and instant to LLM-judged.
 
 <PipelineDiagram />
 
@@ -83,9 +223,6 @@ test('weather agent returns weather data', async () => {
 ## Features
 
 <CardGrid stagger>
-  <Card title="8 Assertion Layers" icon="list-format">
-    Graduate from free deterministic checks to expensive LLM evaluation. Layers 1-4 are free and instant. Only pay for what you need.
-  </Card>
   <Card title="11 Framework Adapters" icon="puzzle">
     OpenAI, Anthropic, Gemini, Ollama, LangChain, LlamaIndex, CrewAI, Google ADK, OpenTelemetry - plug in your stack.
   </Card>
@@ -97,9 +234,6 @@ test('weather agent returns weather data', async () => {
   </Card>
   <Card title="Continuous Evaluation" icon="approve-check-circle">
     Run assertions on production traces. Sample, evaluate, and alert on drift - Slack, webhooks, custom dispatchers.
-  </Card>
-  <Card title="Cost Tracking" icon="document">
-    Know exactly what each test costs. Set tier budgets, soft failure thresholds, and cost-per-assertion metrics.
   </Card>
 </CardGrid>
 
