@@ -1,8 +1,22 @@
-<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest CHANGELOG.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 All notable changes to Attest are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/). One `VERSION` covers the engine, the Python SDK (`attest-ai`) and the TypeScript SDKs (`@attest-ai/core`, `@attest-ai/vitest`); PyPI shows pre-releases in PEP 440 form (`1.0.0-rc.1` → `1.0.0rc1`).
 
 ## [Unreleased]
+
+## [1.0.0] — 2026-11-04
+
+First stable release. A real run or incident becomes a verified fixture with `attest capture`; pull-request CI replays the agent's real code against it with zero model calls and returns pass, fail or not evaluated (with a reason) to a policy gate, in Python and TypeScript. The release candidates added each piece: honest verdicts and install integrity (rc.1), trace checks, behavior contracts and judge budgets (rc.2), capture, replay, world fixtures and pull-request annotations (rc.3), agent-facing CLI, MCP server and mutation testing (rc.4), TypeScript parity, framework capture through OpenTelemetry and the offline failure viewer (rc.5). The [refund-desk](https://github.com/attest-framework/refund-desk) demo walks the whole workflow with `make walkthrough`. Changes since rc.5:
+
+### Changed
+
+- Install instructions in the README, the Python SDK README (the PyPI page), the guides and the `attest` skill's migration reference use `attest-ai>=1.0.0` and `@attest-ai/core@>=1.0.0` / `@attest-ai/vitest@>=1.0.0` (with `vitest@^4`) instead of the release-candidate floors; with 1.0.0 published, a bare install resolves to it. The annotations guide's example pins `pr-annotate@v1.0.0`. `@attest-ai/vitest` declares the peer `@attest-ai/core >=1.0.0` (was `>=1.0.0-rc`), so it no longer installs next to a release-candidate core with a different engine version. The PyPI classifier is `Development Status :: 5 - Production/Stable`.
+
+### Fixed
+
+- `attest capture` never reports a false green. A capture exits 1 (`not verified`, naming every cause that holds) when a drafted contract failed, the trace check failed, `--expect-fail` drafted nothing, or nothing was drafted while the command exited non-zero or a replay-capable capture recorded no model call. Before, a command that exited non-zero with no reachable model printed `verified: every drafted contract passes` with zero drafted contracts and exited 0. A non-zero exit whose drafted contracts all pass still verifies (exit 0, the code recorded). `attest trace check` warns on a not-verified fixture with the same causes.
+- A healthy run with nothing to draft a contract from (no tool call, structured output or cost) has the new outcome `nothing_to_verify`: the fixture is written with `verified: false`, `attest capture` exits 0 and prints `captured: nothing to verify (no tool call, structured output or cost); replay-only fixture, no test drafted`, and no test is drafted. `attest capture --json` and `--result-file` gain `outcome` (`verified` | `not_verified` | `nothing_to_verify`; `proto/attest/v1/cli/capture.schema.json`, with valid and invalid fixtures). Python `record()` and TypeScript `record()` return `verified=False` with `outcome="nothing_to_verify"` instead of raising, and still raise `CaptureError` for `not_verified`. The committed judge fixtures were re-recorded and no longer claim `verified: true` with no contracts.
+- Re-capturing the same scripted run writes the same `trace.conversation_id`: clock-derived conversation ids (`trace.conversation_id`, the `gen_ai.conversation.id` span attribute) are templated to `{{conversation_N}}`. The capture guide now names what still differs between captures instead of promising identical fixtures: raw span ids in `turns[].from_agent` (OpenAI Agents), LangChain message and `lc_run--` ids in LangSmith strings, and the Claude Code session id in `metadata.user_id` of the recorded request (Claude Agent SDK), which is part of the replay key's params.
 
 ## [1.0.0-rc.5] — 2026-11-04
 
@@ -289,7 +303,8 @@ Tagged, not published to registries. No GitHub release was created.
 
 Versions 0.1.0 through 0.6.0 are described in their [GitHub releases](https://github.com/attest-framework/attest/releases); 0.6.1 exists only as a tag. 0.1.0–0.6.0 were published to PyPI; 0.3.0–0.6.0 were also published to npm.
 
-[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0-rc.5...HEAD
+[Unreleased]: https://github.com/attest-framework/attest/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/attest-framework/attest/releases/tag/v1.0.0
 [1.0.0-rc.5]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/attest-framework/attest/releases/tag/v1.0.0-rc.3

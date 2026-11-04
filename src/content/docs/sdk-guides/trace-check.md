@@ -3,7 +3,7 @@ title: "Trace check: integrity and coverage of an OTLP export"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/trace-check.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest trace check` reads an OpenTelemetry trace export (OTLP/JSON, the `ExportTraceServiceRequest` shape that the OTLP file exporter and collectors write) and reports whether its structure can be trusted and which evidence it lacks. `attest trace convert` turns the same export into an Attest trace (schema version 2) that assertions run against.
 

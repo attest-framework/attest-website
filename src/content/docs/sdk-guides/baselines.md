@@ -3,7 +3,7 @@ title: "Baselines"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/baselines.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A baseline is a pinned report-v2: the status, score, cost and duration of every assertion at a point you trust, stored under a tag. `attest policy evaluate --baseline <tag>` compares a new report with it, so a policy can block a change that makes assertions that used to pass fail, or lowers a pass rate measured over fixed-N trials. See [policies](/sdk-guides/policies/) for the rules that act on the comparison.
 

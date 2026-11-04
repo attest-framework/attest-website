@@ -3,7 +3,7 @@ title: "From first test to merge gate"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/merge-gate.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 This guide takes a project from no tests to a GitHub Actions job that blocks merges on agent regressions. No API key, model or network access is needed: the sample test checks a recorded agent run with deterministic assertions (layers 1–4).
 
@@ -12,7 +12,7 @@ This guide takes a project from no tests to a GitHub Actions job that blocks mer
 Python:
 
 ```bash
-uv add "attest-ai>=1.0.0rc1" pytest
+uv add "attest-ai>=1.0.0" pytest
 uv run attest init
 uv run pytest            # 1 passed
 ```
@@ -20,7 +20,7 @@ uv run pytest            # 1 passed
 TypeScript:
 
 ```bash
-npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" "vitest@^4"
+npm install -D "@attest-ai/core@>=1.0.0" "@attest-ai/vitest@>=1.0.0" "vitest@^4"
 npx attest init
 npx vitest run          # 1 passed
 ```

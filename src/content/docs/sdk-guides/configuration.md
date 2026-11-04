@@ -3,13 +3,13 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Two exceptions keep their historical behavior: `ATTEST_JUDGE_TIMEOUT_S` falls back to 30 on a non-positive or non-integer value, and `ATTEST_JUDGE_META_EVAL` is enabled only by the exact value `true`.
 
 ## Engine discovery and the `attest` command
 
-Each SDK release requires one engine version, `ENGINE_VERSION` (`1.0.0-rc.N` during the release candidates). The SDK looks for an engine in this order and uses the first one it finds:
+Each SDK release requires one engine version, `ENGINE_VERSION`, equal to the SDK's own version (for example `1.0.0`). The SDK looks for an engine in this order and uses the first one it finds:
 
 1. `--attest-engine` (pytest) or the `engine_path` / `enginePath` argument of `EngineManager`
 2. `ATTEST_ENGINE_PATH`
