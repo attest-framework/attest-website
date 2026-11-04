@@ -3,7 +3,7 @@ title: "Agent-facing CLI"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/cli.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.0-rc.4 (843dc10a077bc9e62021ff44c318e87e57e4ed0e) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.0-rc.5 (8321f8611d597b0c5fbf51916af207b8c45e5b43) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest` is built for coding agents as well as people. Every command is discoverable offline, prints one JSON document on request, and returns a documented exit code. `attest` in each SDK implements `init` itself and forwards every other command to `attest-engine`; the contract below applies to both spellings.
 
@@ -51,6 +51,7 @@ Commands that run a child process (`capture`, `replay`, `world` with `-- <comman
 | `trace check` | `cli/trace-check.schema.json` |
 | `trace convert` | `cli/trace-convert.schema.json` |
 | `version` | `cli/version.schema.json` |
+| `view` | `cli/view.schema.json` |
 | `world` | `cli/world.schema.json` |
 | `help` | `cli/help.schema.json` |
 
@@ -108,6 +109,8 @@ The table is checked against the engine's command registry by a test; a change t
 | `version` | 0 | success |
 | `version` | 1 | writing the output failed |
 | `version` | 2 | usage error |
+| `view` | 0 | success: the page was written |
+| `view` | 2 | usage error, or unreadable or invalid input, or the page could not be written |
 | `world` | 0 | the command exited 0, or --serve stopped cleanly |
 | `world` | 1 | the command exited non-zero (its code is not propagated; --json reports it as exit_code), or the world could not be served or its state written |
 | `world` | 2 | usage error or an invalid world.yaml |
