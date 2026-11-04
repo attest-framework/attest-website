@@ -133,8 +133,8 @@ expect(result).tokens_under(3000)
 
 | SDK | Package | Runtime | Status |
 |---|---|---|---|
-| Python | `attest-ai` (PyPI) | Python 3.10+ | Stable (v0.4.2) |
-| TypeScript | `@attest-ai/core` (npm) | Node 18+ | Stable (v0.4.2) |
+| Python | `attest-ai` (PyPI) | Python 3.10+ | Stable (v1.0.0) |
+| TypeScript | `@attest-ai/core` (npm) | Node 18+ | Stable (v1.0.0) |
 
 Both SDKs provide the same core API surface: `expect()` fluent DSL, `TraceBuilder`, `TraceTree`, adapter base classes, tier system, and engine lifecycle management via `EngineManager`.
 
@@ -266,9 +266,9 @@ Both SDKs share the same engine binary and protocol. The engine is language-agno
 
 ```mermaid
 flowchart LR
-    PY["Python SDK"] -->|"JSON-RPC 2.0"| ENG["Go Engine<br/>v0.4.0"]
+    PY["Python SDK"] -->|"JSON-RPC 2.0"| ENG["Go Engine<br/>v1.0.0"]
     TS["TypeScript SDK"] -->|"JSON-RPC 2.0"| ENG
     FUTURE["Future SDKs<br/>(Go, Rust, ...)"] -.->|"JSON-RPC 2.0"| ENG
 ```
 
-SDK versions and engine versions are **decoupled**. Both SDKs at v0.4.2 work with engine v0.4.0. The engine binary is cached in `~/.attest/bin/` with a `.engine-version` marker file for version validation.
+Each SDK release requires one engine version, `ENGINE_VERSION`, equal to the SDK's own (SDK 1.0.0 requires engine 1.0.0). The engine binary is cached in `~/.attest/bin/<ENGINE_VERSION>/`, and the SDK stops with a version-mismatch error when the engine it finds reports a different version.

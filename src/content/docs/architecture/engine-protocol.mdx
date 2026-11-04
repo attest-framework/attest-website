@@ -67,7 +67,7 @@ Handshake between SDK and engine. Must be the first message after spawning the s
 ```json
 {
   "sdk_name": "attest-python",
-  "sdk_version": "1.0.0rc1",
+  "sdk_version": "1.0.0",
   "protocol_version": 1,
   "required_capabilities": ["layers_1_4"],
   "preferred_encoding": "json"
@@ -77,7 +77,7 @@ Handshake between SDK and engine. Must be the first message after spawning the s
 | Field | Type | Description |
 |---|---|---|
 | `sdk_name` | string | SDK identifier (`attest-python`, `attest-typescript`) |
-| `sdk_version` | string | SDK version (e.g., `1.0.0rc1`) |
+| `sdk_version` | string | SDK version (e.g., `1.0.0`) |
 | `protocol_version` | int | Protocol version the SDK supports |
 | `required_capabilities` | string[] | Capabilities the SDK requires from the engine |
 | `preferred_encoding` | string | Preferred message encoding (`json`) |
@@ -86,13 +86,13 @@ Handshake between SDK and engine. Must be the first message after spawning the s
 
 ```json
 {
-  "engine_version": "0.4.0",
+  "engine_version": "1.0.0",
   "protocol_version": 1,
-  "capabilities": ["layers_1_4", "layers_5_6", "trace_tree", "plugins"],
+  "capabilities": ["layers_1_4", "trace_tree", "continuous_eval", "plugins", "llm_judge", "simulation", "layers_5_6"],
   "missing": [],
   "compatible": true,
   "encoding": "json",
-  "max_concurrent_requests": 64,
+  "max_concurrent_requests": 1,
   "max_trace_size_bytes": 10485760,
   "max_steps_per_trace": 10000
 }

@@ -29,7 +29,7 @@ import ComparisonTable from '@components/ComparisonTable.astro';
 
 A real run or incident becomes a verified fixture with `attest capture`. PR CI replays your agent's real code against that fixture with zero model calls and returns one of three results to a policy gate: **pass**, **fail**, or **not evaluated** with a reason. It works the same in Python and TypeScript.
 
-The walk-through below follows one story from [refund-desk](https://github.com/attest-framework/refund-desk), a synthetic demo: a support agent refunds a customer twice after a payment timeout (INC-1042). No paid model API is called anywhere, and every command and output on this page is copied from the demo or from the linked guides. The demo installs attest `1.0.0-rc.5`; the commands below use `uv run attest` for Python and `npx attest` for TypeScript.
+The walk-through below follows one story from [refund-desk](https://github.com/attest-framework/refund-desk), a synthetic demo: a support agent refunds a customer twice after a payment timeout (INC-1042). No paid model API is called anywhere, and every command and output on this page is copied from the demo or from the linked guides. The demo installs attest `1.0.0`; the commands below use `uv run attest` for Python and `npx attest` for TypeScript.
 
 ### 1. The incident
 
@@ -245,10 +245,10 @@ test('weather agent returns weather data', async () => {
 
 ```bash
 # Python
-uv add "attest-ai>=1.0.0rc1"
+uv add "attest-ai>=1.0.0"
 
 # TypeScript
-npm install -D "@attest-ai/core@>=1.0.0-rc.1" "@attest-ai/vitest@>=1.0.0-rc.1" vitest
+npm install -D "@attest-ai/core@>=1.0.0" "@attest-ai/vitest@>=1.0.0" "vitest@^4"
 ```
 
 Check the [Python quickstart](/getting-started/python/) or [TypeScript quickstart](/getting-started/typescript/) for a complete walkthrough.
