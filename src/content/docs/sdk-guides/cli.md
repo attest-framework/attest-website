@@ -3,7 +3,7 @@ title: "Agent-facing CLI"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/cli.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/cli.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest` is built for coding agents as well as people. Every command is discoverable offline, prints one JSON document on request, and returns a documented exit code. `attest` in each SDK implements `init` itself and forwards every other command to `attest-engine`; the contract below applies to both spellings.
 
@@ -92,7 +92,7 @@ The table is checked against the engine's command registry by a test; a change t
 | `policy` | 0 | pass: every rule satisfied |
 | `policy` | 1 | block: a block-severity rule was violated |
 | `policy` | 2 | warn: only warn-severity rules were violated |
-| `policy` | 3 | usage error, or the policy, report, baseline or mutation report failed to load, or a rule lacks its input (block_on_regression or regression without --baseline, min_mutation_score without --mutation), or the report has 0 tests while tests_collected is above 0 |
+| `policy` | 3 | usage error, or the policy, report, baseline or mutation report failed to load, or the policy sets min_mutation_score without --mutation |
 | `replay` | 0 | every request was served and the command exited 0 |
 | `replay` | 1 | the command exited non-zero (its code is not propagated; --json reports it as exit_code), a request missed, or the fixture could not be loaded or served |
 | `replay` | 2 | usage error or an invalid --world file |

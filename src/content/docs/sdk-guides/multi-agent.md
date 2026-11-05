@@ -3,7 +3,7 @@ title: "Multi-Agent Testing Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/multi-agent.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest provides first-class support for testing multi-agent systems through hierarchical trace trees, cross-agent assertions, and delegation tracking. All multi-agent assertions are Layer 7 — deterministic, free, and instant.
 
@@ -154,14 +154,13 @@ tree.aggregate_latency  # Total latency_ms across all agents
 
 All multi-agent assertions use `TYPE_TRACE_TREE` (Layer 7) and are evaluated by the engine's `TraceTreeEvaluator`.
 
-The snippets below run inside a pytest test that takes the `attest` fixture, with the agent's `AgentResult` in `result`. `attest.evaluate(chain)` runs every assertion in the chain and fails the test on a hard failure; a chain that is never passed to `evaluate()` checks nothing.
-
 ### `agent_called(agent_id)`
 
 Assert a specific agent was invoked somewhere in the trace tree:
 
 ```python
-attest.evaluate(expect(result).agent_called("researcher").agent_called("writer"))
+expect(result).agent_called("researcher")
+expect(result).agent_called("writer")
 ```
 
 ### `delegation_depth(max_depth)`
@@ -169,7 +168,7 @@ attest.evaluate(expect(result).agent_called("researcher").agent_called("writer")
 Assert the trace tree does not exceed a maximum nesting depth:
 
 ```python
-attest.evaluate(expect(result).delegation_depth(3))  # Max 3 levels deep
+expect(result).delegation_depth(3)  # Max 3 levels deep
 ```
 
 ### `agent_output_contains(agent_id, value)`
@@ -177,11 +176,8 @@ attest.evaluate(expect(result).delegation_depth(3))  # Max 3 levels deep
 Assert a sub-agent's output contains a specific string:
 
 ```python
-attest.evaluate(
-    expect(result)
-    .agent_output_contains("researcher", "policy found")
-    .agent_output_contains("writer", "report", case_sensitive=False)
-)
+expect(result).agent_output_contains("researcher", "policy found")
+expect(result).agent_output_contains("writer", "report", case_sensitive=False)
 ```
 
 ### `cross_agent_data_flow(from_agent, to_agent, field)`
@@ -189,12 +185,10 @@ attest.evaluate(
 Assert that a field from one agent's output appears in another agent's input:
 
 ```python
-attest.evaluate(
-    expect(result).cross_agent_data_flow(
-        from_agent="researcher",
-        to_agent="writer",
-        field="findings",
-    )
+expect(result).cross_agent_data_flow(
+    from_agent="researcher",
+    to_agent="writer",
+    field="findings",
 )
 ```
 
@@ -205,13 +199,11 @@ The engine extracts `field` from `from_agent`'s output JSON, serializes it, and 
 Assert that all agent delegations in the trace tree match the allowed transition pairs:
 
 ```python
-attest.evaluate(
-    expect(result).follows_transitions([
-        ("orchestrator", "researcher"),
-        ("orchestrator", "writer"),
-        ("researcher", "writer"),
-    ])
-)
+expect(result).follows_transitions([
+    ("orchestrator", "researcher"),
+    ("orchestrator", "writer"),
+    ("researcher", "writer"),
+])
 ```
 
 The engine walks the trace tree depth-first, collects every (parent_agent_id, child_agent_id) delegation pair, and verifies each pair exists in the allowed list. Any delegation not in the list causes a failure.
@@ -223,7 +215,7 @@ This is useful for enforcing choreography — ensuring agents only delegate to a
 Assert the total cost across all agents is under a threshold:
 
 ```python
-attest.evaluate(expect(result).aggregate_cost_under(0.10))
+expect(result).aggregate_cost_under(0.10)
 ```
 
 ### `aggregate_tokens_under(max_tokens)`
@@ -231,7 +223,7 @@ attest.evaluate(expect(result).aggregate_cost_under(0.10))
 Assert the total token usage across all agents is under a threshold:
 
 ```python
-attest.evaluate(expect(result).aggregate_tokens_under(5000))
+expect(result).aggregate_tokens_under(5000)
 ```
 
 ### Soft Failures
@@ -239,50 +231,46 @@ attest.evaluate(expect(result).aggregate_tokens_under(5000))
 All multi-agent assertions support the `soft` parameter. Soft failures produce `soft_fail` status instead of `hard_fail`, allowing CI to warn without blocking:
 
 ```python
-attest.evaluate(
-    expect(result)
-    .delegation_depth(2, soft=True)
-    .aggregate_cost_under(0.05, soft=True)
-)
+expect(result).delegation_depth(2, soft=True)
+expect(result).aggregate_cost_under(0.05, soft=True)
 ```
 
 ## Choreography Validation
 
-Choreography validation ensures agents interact according to a defined protocol. Combine `follows_transitions` with other assertions to fully validate multi-agent workflows. `run_my_pipeline` stands for your own agent; for `cross_agent_data_flow` the trace must record the receiving agent's input with the field (`writer.set_input(findings=...)` on a `delegate()` sub-trace):
+Choreography validation ensures agents interact according to a defined protocol. Combine `follows_transitions` with other assertions to fully validate multi-agent workflows:
 
 ```python
 from attest import expect
 
-
-def test_choreography(attest):
-    result = run_my_pipeline("AI testing frameworks")  # your agent's AgentResult
+def test_research_pipeline(result):
     tree = result.trace_tree()
 
-    attest.evaluate(
-        expect(result)
-        # Structural validation
-        .delegation_depth(3)
-        .agent_called("orchestrator")
-        .agent_called("researcher")
-        .agent_called("writer")
-        # Choreography — only allowed delegation paths
-        .follows_transitions([
-            ("orchestrator", "researcher"),
-            ("orchestrator", "writer"),
-            ("researcher", "writer"),
-        ])
-        # Data flow — researcher findings reach writer (the writer's input must carry `findings`)
-        .cross_agent_data_flow(
-            from_agent="researcher",
-            to_agent="writer",
-            field="findings",
-        )
-        # Output quality
-        .agent_output_contains("writer", "report")
-        # Cost governance
-        .aggregate_cost_under(0.10)
-        .aggregate_tokens_under(5000)
+    # Structural validation
+    expect(result).delegation_depth(3)
+    expect(result).agent_called("orchestrator")
+    expect(result).agent_called("researcher")
+    expect(result).agent_called("writer")
+
+    # Choreography — only allowed delegation paths
+    expect(result).follows_transitions([
+        ("orchestrator", "researcher"),
+        ("orchestrator", "writer"),
+        ("researcher", "writer"),
+    ])
+
+    # Data flow — researcher findings reach writer
+    expect(result).cross_agent_data_flow(
+        from_agent="researcher",
+        to_agent="writer",
+        field="findings",
     )
+
+    # Output quality
+    expect(result).agent_output_contains("writer", "report")
+
+    # Cost governance
+    expect(result).aggregate_cost_under(0.10)
+    expect(result).aggregate_tokens_under(5000)
 ```
 
 ## Complete Example
@@ -334,36 +322,36 @@ def run_research_pipeline(query: str) -> AgentResult:
     return AgentResult(trace=parent.build())
 
 
-def test_research_pipeline(attest):
-    @repeat(n=5)
-    @scenario(persona=FRIENDLY_USER, seed=42)
-    def trial(persona):
-        result = run_research_pipeline("AI testing frameworks")
+@repeat(n=5)
+@scenario(persona=FRIENDLY_USER, seed=42)
+def test_research_pipeline(persona):
+    result = run_research_pipeline("AI testing frameworks")
 
-        # Layer 7: Multi-agent assertions
-        return attest.inspect(
-            expect(result)
-            .agent_called("researcher")
-            .agent_called("writer")
-            .delegation_depth(2)
-            .follows_transitions([
-                ("orchestrator", "researcher"),
-                ("orchestrator", "writer"),
-            ])
-            .agent_output_contains("writer", "report")
-            .aggregate_cost_under(0.10)
-        )
+    # Layer 7: Multi-agent assertions
+    expect(result).agent_called("researcher")
+    expect(result).agent_called("writer")
+    expect(result).delegation_depth(2)
+    expect(result).follows_transitions([
+        ("orchestrator", "researcher"),
+        ("orchestrator", "writer"),
+    ])
+    expect(result).agent_output_contains("writer", "report")
+    expect(result).aggregate_cost_under(0.10)
 
-    repeat_result = trial()
-    attest.enforce(repeat_result)  # fail the test on any failing trial
+    return result
 
-    # Inspect the trace tree from any individual run
-    tree = repeat_result.results[0].results[0].trace_tree()
-    print(f"Agents: {tree.agents}")
-    print(f"Delegations: {tree.delegations}")
-    print(f"Tool calls: {[t.name for t in tree.all_tool_calls()]}")
-    print(f"Depth: {tree.depth}")
-    print(f"Total cost: ${tree.aggregate_cost:.4f}")
+
+# Run the test
+repeat_result = test_research_pipeline()
+assert repeat_result.all_passed
+
+# Inspect the trace tree from any individual run
+tree = repeat_result.results[0].trace_tree()
+print(f"Agents: {tree.agents}")
+print(f"Delegations: {tree.delegations}")
+print(f"Tool calls: {[t.name for t in tree.all_tool_calls()]}")
+print(f"Depth: {tree.depth}")
+print(f"Total cost: ${tree.aggregate_cost:.4f}")
 ```
 
 Expected output:
@@ -385,8 +373,10 @@ Temporal assertions verify the execution order and timing of agents within a tra
 Assert that agent `a` completed before agent `b` started. Use this to enforce sequential execution guarantees.
 
 ```python
+from attest import expect
+
 # researcher must complete before writer begins
-attest.evaluate(expect(result).agent_ordered_before("researcher", "writer"))
+expect(result).agent_ordered_before("researcher", "writer")
 ```
 
 Fails if:
@@ -400,7 +390,7 @@ Assert that agents `a` and `b` executed concurrently — their time ranges inter
 
 ```python
 # data-fetcher and context-loader must run in parallel
-attest.evaluate(expect(result).agents_overlap("data-fetcher", "context-loader"))
+expect(result).agents_overlap("data-fetcher", "context-loader")
 ```
 
 Fails if:
@@ -414,12 +404,10 @@ Assert that a specific agent's wall-clock duration is under `max_ms` millisecond
 
 ```python
 # researcher must complete within 3 seconds
-attest.evaluate(
-    expect(result)
-    .agent_wall_time_under("researcher", max_ms=3000)
-    # writer must complete within 2 seconds (soft — warn, don't block CI)
-    .agent_wall_time_under("writer", max_ms=2000, soft=True)
-)
+expect(result).agent_wall_time_under("researcher", max_ms=3000)
+
+# writer must complete within 2 seconds (soft — warn, don't block CI)
+expect(result).agent_wall_time_under("writer", max_ms=2000, soft=True)
 ```
 
 Wall time is `ended_at - started_at` for the agent's root trace.
@@ -430,13 +418,11 @@ Assert that agents executed in a defined pipeline order. `groups` is a list of l
 
 ```python
 # Sequential pipeline: orchestrator → [researcher, context-loader] → writer
-attest.evaluate(
-    expect(result).ordered_agents([
-        ["orchestrator"],
-        ["researcher", "context-loader"],  # these two run in parallel
-        ["writer"],
-    ])
-)
+expect(result).ordered_agents([
+    ["orchestrator"],
+    ["researcher", "context-loader"],  # these two run in parallel
+    ["writer"],
+])
 ```
 
 This combines ordering and overlap assertions in a single call:
@@ -446,80 +432,57 @@ This combines ordering and overlap assertions in a single call:
 
 ### Temporal Assertion Example
 
-End-to-end test combining structural, choreography, and temporal assertions. Temporal assertions read `started_at_ms` and `ended_at_ms` from the steps of each agent, and match steps by `agent_id`, so the trace must carry all three on every agent's steps, the orchestrator's own included. `delegate()` alone does not set them; pass them to each `add_*_call`, as `run_timed_pipeline` does with a `context-loader` agent that runs in parallel with `researcher`:
+End-to-end test combining structural, choreography, and temporal assertions:
 
 ```python
-from attest import AgentResult, TraceBuilder, expect
-from attest.delegate import delegate
+from attest import expect
 from attest.simulation import scenario, repeat, FRIENDLY_USER
-from attest.simulation._context import _active_builder
 
 
-def run_timed_pipeline(query: str) -> AgentResult:
-    parent = TraceBuilder(agent_id="orchestrator")
-    parent.set_input(query=query)
-    token = _active_builder.set(parent)
-    try:
-        parent.add_llm_call(
-            "plan", agent_id="orchestrator", result={"plan": "fan out, then write"},
-            started_at_ms=0, ended_at_ms=50,
-        )
-        for name, start, end in [
-            ("researcher", 100, 1000),
-            ("context-loader", 100, 900),
-            ("writer", 1100, 1800),
-        ]:
-            with delegate(name) as agent:
-                agent.add_tool_call(
-                    f"{name}_step", agent_id=name, args={}, result={"findings": "f"},
-                    started_at_ms=start, ended_at_ms=end,
-                )
-                agent.set_output(message=f"{name} done. Report", findings="f")
-        parent.set_output(message="Pipeline complete. Report ready.")
-        parent.set_metadata(total_tokens=1500, cost_usd=0.015, latency_ms=2000)
-    finally:
-        _active_builder.reset(token)
-    return AgentResult(trace=parent.build())
+@repeat(n=3)
+@scenario(persona=FRIENDLY_USER, seed=42)
+def test_pipeline_timing(persona):
+    result = run_research_pipeline("AI testing frameworks")
+
+    # Structural
+    expect(result).agent_called("researcher")
+    expect(result).agent_called("context-loader")
+    expect(result).agent_called("writer")
+    expect(result).delegation_depth(2)
+
+    # Choreography
+    expect(result).follows_transitions([
+        ("orchestrator", "researcher"),
+        ("orchestrator", "context-loader"),
+        ("orchestrator", "writer"),
+    ])
+
+    # Temporal — execution order
+    expect(result).agent_ordered_before("orchestrator", "researcher")
+    expect(result).agent_ordered_before("orchestrator", "context-loader")
+    expect(result).agent_ordered_before("researcher", "writer")
+    expect(result).agent_ordered_before("context-loader", "writer")
+
+    # Temporal — parallel execution
+    expect(result).agents_overlap("researcher", "context-loader")
+
+    # Temporal — performance budgets
+    expect(result).agent_wall_time_under("researcher", max_ms=5000)
+    expect(result).agent_wall_time_under("writer", max_ms=3000)
+
+    # Temporal — pipeline ordering (concise form)
+    expect(result).ordered_agents([
+        ["orchestrator"],
+        ["researcher", "context-loader"],
+        ["writer"],
+    ])
+
+    # Cost governance
+    expect(result).aggregate_cost_under(0.10)
+
+    return result
 
 
-def test_pipeline_timing(attest):
-    @repeat(n=3)
-    @scenario(persona=FRIENDLY_USER, seed=42)
-    def trial(persona):
-        result = run_timed_pipeline("AI testing frameworks")
-
-        return attest.inspect(
-            expect(result)
-            # Structural
-            .agent_called("researcher")
-            .agent_called("context-loader")
-            .agent_called("writer")
-            .delegation_depth(2)
-            # Choreography
-            .follows_transitions([
-                ("orchestrator", "researcher"),
-                ("orchestrator", "context-loader"),
-                ("orchestrator", "writer"),
-            ])
-            # Temporal — execution order
-            .agent_ordered_before("orchestrator", "researcher")
-            .agent_ordered_before("orchestrator", "context-loader")
-            .agent_ordered_before("researcher", "writer")
-            .agent_ordered_before("context-loader", "writer")
-            # Temporal — parallel execution
-            .agents_overlap("researcher", "context-loader")
-            # Temporal — performance budgets
-            .agent_wall_time_under("researcher", max_ms=5000)
-            .agent_wall_time_under("writer", max_ms=3000)
-            # Temporal — pipeline ordering (concise form)
-            .ordered_agents([
-                ["orchestrator"],
-                ["researcher", "context-loader"],
-                ["writer"],
-            ])
-            # Cost governance
-            .aggregate_cost_under(0.10)
-        )
-
-    attest.enforce(trial())
+repeat_result = test_pipeline_timing()
+assert repeat_result.all_passed
 ```

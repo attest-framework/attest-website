@@ -3,13 +3,13 @@ title: "Behavior contracts"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/behavior-contracts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/behavior-contracts.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/behavior-contracts.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A behavior contract states what the agent did, not what it said: how often a tool ran per business key, which tools it must never call, the shape and order of its tool calls, whether it looped, how many tool failures it hit in a row, and what arguments it passed. Contracts are Layer 3 trace checks. They run in the engine, deterministically, with no model calls, so they cost nothing and give the same answer on every run.
 
 ```bash
-uv add "attest-ai>=1.0.1"
-npm install -D "@attest-ai/core@>=1.0.1" "@attest-ai/vitest@>=1.0.1" "vitest@^4"
+uv add "attest-ai>=1.0.0"
+npm install -D "@attest-ai/core@>=1.0.0" "@attest-ai/vitest@>=1.0.0" "vitest@^4"
 ```
 
 ## Example: one refund per order

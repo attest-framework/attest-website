@@ -3,7 +3,7 @@ title: "Adapter Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/framework-adapters.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
 
@@ -34,32 +34,27 @@ framework adapter (BaseAdapter)         — one agent run (N LLM calls, M tool c
 
 ## Provider Adapters
 
-Every example below runs inside a pytest test that takes the `attest` fixture. `attest.evaluate(chain)` runs every assertion in the chain and fails the test on a hard failure; a chain that is never passed to `evaluate()` checks nothing.
-
 ### OpenAI
 
 ```python
 from openai import OpenAI
 from attest import OpenAIAdapter, AgentResult, expect
 
+client = OpenAI()
+adapter = OpenAIAdapter(agent_id="assistant")
 
-def test_explains_recursion(attest):
-    client = OpenAI()
-    adapter = OpenAIAdapter(agent_id="assistant")
+response = client.chat.completions.create(
+    model="gpt-4.1",
+    messages=[{"role": "user", "content": "Explain recursion"}],
+)
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": "Explain recursion"}],
-    )
+trace = adapter.trace_from_response(
+    response,
+    input_messages=[{"role": "user", "content": "Explain recursion"}],
+)
 
-    trace = adapter.trace_from_response(
-        response,
-        input_messages=[{"role": "user", "content": "Explain recursion"}],
-        cost_usd=0.002,
-    )
-
-    result = AgentResult(trace=trace)
-    attest.evaluate(expect(result).output_contains("recursion").cost_under(0.10))
+result = AgentResult(trace=trace)
+expect(result).output_contains("recursion").cost_under(0.10)
 ```
 
 ### Anthropic
@@ -68,23 +63,19 @@ def test_explains_recursion(attest):
 from anthropic import Anthropic
 from attest import AnthropicAdapter, AgentResult, expect
 
+client = Anthropic()
+adapter = AnthropicAdapter(agent_id="claude-agent")
 
-def test_explains_recursion(attest):
-    client = Anthropic()
-    adapter = AnthropicAdapter(agent_id="claude-agent")
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Explain recursion"}],
+)
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": "Explain recursion"}],
-    )
-
-    trace = adapter.trace_from_response(
-        response,
-        input_messages=[{"role": "user", "content": "Explain recursion"}],
-    )
-
-    attest.evaluate(expect(AgentResult(trace=trace)).output_contains("recursion"))
+trace = adapter.trace_from_response(
+    response,
+    input_messages=[{"role": "user", "content": "Explain recursion"}],
+)
 ```
 
 ### Gemini
@@ -122,7 +113,7 @@ trace = adapter.trace_from_response(
 ### LangChain
 
 ```bash
-uv add 'attest-ai[langchain]>=1.0.1'
+uv add 'attest-ai[langchain]>=1.0.0'
 ```
 
 **Context manager usage:**
@@ -130,18 +121,16 @@ uv add 'attest-ai[langchain]>=1.0.1'
 ```python
 from attest import LangChainAdapter, AgentResult, expect
 
+adapter = LangChainAdapter(agent_id="research-agent")
 
-def test_research_agent_searches(attest):
-    adapter = LangChainAdapter(agent_id="research-agent")
+with adapter.capture() as handler:
+    result = agent.invoke(
+        {"input": "Summarize recent AI research"},
+        config={"callbacks": [handler]},
+    )
 
-    with adapter.capture() as handler:
-        agent.invoke(
-            {"input": "Summarize recent AI research"},
-            config={"callbacks": [handler]},
-        )
-
-    trace = adapter.trace
-    attest.evaluate(expect(AgentResult(trace=trace)).required_tools(["search_web"]))
+trace = adapter.trace
+expect(AgentResult(trace=trace)).tool_called("search_web")
 ```
 
 **Direct handler usage:**
@@ -169,29 +158,23 @@ trace = handler.build_trace()
 ### Google ADK
 
 ```bash
-uv add 'attest-ai[google-adk]>=1.0.1'
+uv add 'attest-ai[google-adk]>=1.0.0'
 ```
 
 **Async capture:**
 
 ```python
-import pytest
 from attest import GoogleADKAdapter, AgentResult, expect
 
+adapter = GoogleADKAdapter(agent_id="root-agent")
+trace = await adapter.capture_async(
+    runner=runner,
+    user_id="user-123",
+    session_id="session-abc",
+    message="What is the weather in Paris?",
+)
 
-@pytest.mark.asyncio
-async def test_weather_agent_looks_up_weather(attest):
-    adapter = GoogleADKAdapter(agent_id="root-agent")
-    trace = await adapter.capture_async(
-        runner=runner,
-        user_id="user-123",
-        session_id="session-abc",
-        message="What is the weather in Paris?",
-    )
-
-    await attest.evaluate_async(
-        expect(AgentResult(trace=trace)).required_tools(["get_weather"])
-    )
+expect(AgentResult(trace=trace)).tool_called("get_weather")
 ```
 
 **From pre-collected events:**
@@ -218,7 +201,7 @@ trace = GoogleADKAdapter.from_events(
 ### LlamaIndex
 
 ```bash
-uv add 'attest-ai[llamaindex]>=1.0.1'
+uv add 'attest-ai[llamaindex]>=1.0.0'
 ```
 
 **Context manager usage:**
@@ -226,17 +209,15 @@ uv add 'attest-ai[llamaindex]>=1.0.1'
 ```python
 from attest import LlamaIndexInstrumentationHandler, AgentResult, expect
 
+with LlamaIndexInstrumentationHandler(agent_id="rag-agent") as handler:
+    response = query_engine.query("What is the capital of France?")
 
-def test_rag_agent_answers_paris(attest):
-    with LlamaIndexInstrumentationHandler(agent_id="rag-agent") as handler:
-        response = query_engine.query("What is the capital of France?")
+trace = handler.build_trace(
+    query="What is the capital of France?",
+    response=str(response),
+)
 
-    trace = handler.build_trace(
-        query="What is the capital of France?",
-        response=str(response),
-    )
-
-    attest.evaluate(expect(AgentResult(trace=trace)).output_contains("Paris"))
+expect(AgentResult(trace=trace)).output_contains("Paris")
 ```
 
 **Manual attach/detach:**
@@ -263,7 +244,7 @@ trace = handler.build_trace(query="...", response="...")
 ### OpenTelemetry
 
 ```bash
-uv add 'attest-ai[otel]>=1.0.1'
+uv add 'attest-ai[otel]>=1.0.0'
 ```
 
 **From collected spans or an OTLP/JSON export:**
@@ -301,23 +282,19 @@ A framework adapter captures LLM calls internally. Use both tiers only when you 
 ```python
 from attest import OpenAIAdapter, LangChainAdapter, AgentResult, expect
 
+# Provider-level: assert on a raw OpenAI call
+raw_trace = OpenAIAdapter(agent_id="raw-call").trace_from_response(
+    response,
+    input_messages=[{"role": "user", "content": "Hello"}],
+)
+expect(AgentResult(trace=raw_trace)).output_contains("Hello")
 
-def test_raw_call_and_agent_run(attest):
-    # Provider-level: assert on a raw OpenAI call
-    raw_trace = OpenAIAdapter(agent_id="raw-call").trace_from_response(
-        response,
-        input_messages=[{"role": "user", "content": "Hello"}],
-    )
-    attest.evaluate(expect(AgentResult(trace=raw_trace)).output_contains("Hello"))
+# Framework-level: assert on the full agent run
+lc_adapter = LangChainAdapter(agent_id="orchestrated-run")
+with lc_adapter.capture() as handler:
+    agent.invoke({"input": "Hello"}, config={"callbacks": [handler]})
 
-    # Framework-level: assert on the full agent run
-    lc_adapter = LangChainAdapter(agent_id="orchestrated-run")
-    with lc_adapter.capture() as handler:
-        agent.invoke({"input": "Hello"}, config={"callbacks": [handler]})
-
-    attest.evaluate(
-        expect(AgentResult(trace=lc_adapter.trace)).required_tools(["lookup_user"])
-    )
+expect(AgentResult(trace=lc_adapter.trace)).tool_called("lookup_user")
 ```
 
 ## Writing a Custom Provider Adapter

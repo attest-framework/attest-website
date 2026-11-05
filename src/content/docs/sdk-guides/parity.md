@@ -3,7 +3,7 @@ title: "TypeScript parity"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/parity.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/parity.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/parity.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Every capability the Python SDK exposes has a TypeScript counterpart, or a documented exception. This page is generated from the public surface of both SDKs by the parity test (`sdks/python/tests/test_parity.py`); do not edit it by hand. Regenerate it with `ATTEST_UPDATE_PARITY=1` after changing either SDK's surface.
 

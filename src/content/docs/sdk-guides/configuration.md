@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Two exceptions keep their historical behavior: `ATTEST_JUDGE_TIMEOUT_S` falls back to 30 on a non-positive or non-integer value, and `ATTEST_JUDGE_META_EVAL` is enabled only by the exact value `true`.
 
@@ -98,9 +98,6 @@ Plain `http` to a host other than `localhost` or a loopback address is allowed f
 | `ATTEST_MAX_JUDGE_CALLS` | Maximum judge-provider requests in one engine session (judges, `repeat` runs, bias probes, simulated-user messages, retries). Each request reserves one call before it is sent; a request that cannot reserve is not sent and its assertion is `not_evaluated: budget_exhausted`. ACP judge calls count. | unset (no limit) |
 | `ATTEST_BUDGET_USD` | Maximum USD for attest-initiated model calls (layer 5 OpenAI embeddings and every judge request) in one engine session. Each call reserves its worst-case cost (price × prompt bytes + price × output-token limit) before it is sent and is reconciled to the reported token usage when it returns; a call that fails after it was sent keeps its reservation, since the provider may have billed it. A default judge model or embedding model without a price is a startup error, and so is the `acp` judge, which reports no token usage; an assertion that names an unpriced `model` is refused at run time (`budget_exhausted`). | unset (no limit) |
 | `ATTEST_JUDGE_PRICE_IN`, `ATTEST_JUDGE_PRICE_OUT` | Judge price in USD per 1M input and output tokens, set together. Overrides the built-in table (`gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`) for every judge call; required for `ATTEST_BUDGET_USD` with any other judge model. | unset |
-| `ATTEST_ENGINE_TIMEOUT` | How long the SDK waits for the engine's reply to one request. Read by the SDK, not the engine. Seconds in Python; milliseconds in TypeScript. On a timeout the SDK restarts the engine and fails every pending request, so a late reply never reaches another test. The new engine gets the session budget that is left. Each request lost in the restart that can call a model (a batch with a judge or embedding assertion, or a simulated-user message) holds its `budget` limits if it sent them, otherwise everything that is left; deterministic requests hold nothing. Spend the SDK could not observe earlier (simulated-user messages, engine errors) leaves no budget after a restart. So a timeout can exhaust `ATTEST_MAX_JUDGE_CALLS` / `ATTEST_BUDGET_USD` for the rest of the session. | `30` s (Python), `30000` ms (TypeScript) |
-
-Under pytest-xdist each worker is a separate pytest process with its own engine session, so `ATTEST_MAX_JUDGE_CALLS`, `ATTEST_BUDGET_USD` and `ATTEST_MAX_SOFT_FAILURES` apply per worker, not across the run. Split the budget by the worker count: with `-n 4` and a total of 40 judge calls, set `ATTEST_MAX_JUDGE_CALLS=10`.
 
 ## Cache and history
 
@@ -109,7 +106,7 @@ Under pytest-xdist each worker is a separate pytest process with its own engine 
 | `ATTEST_REPORT_TRACES` | `1` embeds the evaluated traces in the report-v2 file (`traces` and a `trace_id` per row) for `attest view`. Traces hold prompts, outputs and tool arguments. Read by the pytest plugin and the Vitest reporter. See [viewer](/sdk-guides/viewer/). | unset |
 | `ATTEST_CONTRACTS_DIR` | Directory where each engine process records the assertion specs it evaluates (one `0600` NDJSON file per process, no traces or outputs), for `attest mutate --contracts`. Off when unset. See [mutation](/sdk-guides/mutation/). | unset |
 | `ATTEST_CACHE_DIR` | Cache, baseline and history database directory. | `~/.attest/cache` |
-| `ATTEST_HISTORY_MAX_ROWS` | Result history row limit (enables pruning). Pruning runs in the background in short batches, so a write never waits for it to finish. | `10000` when pruning is enabled |
+| `ATTEST_HISTORY_MAX_ROWS` | Result history row limit (enables pruning). | `10000` when pruning is enabled |
 | `ATTEST_HISTORY_MAX_AGE_DAYS` | Result history age limit in days (enables pruning). | `30` when pruning is enabled |
 
 ## Removed variables
