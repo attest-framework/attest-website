@@ -124,6 +124,10 @@ export default defineConfig({
           slug: "overview",
         },
         {
+          label: "Tour",
+          slug: "tour",
+        },
+        {
           label: "Getting Started",
           items: [
             { label: "Quickstart", slug: "getting-started/quickstart" },
