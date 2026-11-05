@@ -32,6 +32,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       sha: ${{ steps.release.outputs.sha }}
+      website_sha: ${{ steps.website.outputs.sha }}
     steps:
       - name: Validate tag
         id: tag
@@ -74,6 +75,10 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+
+      - name: Record the website commit this job verifies
+        id: website
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout attest at the release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -136,10 +141,12 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # Check out the exact website commit `build` tested, built and link-checked, not
+      # whatever main is now, so the status below describes the tree that is pushed.
       - name: Checkout website
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: main
+          ref: ${{ needs.build.outputs.website_sha }}
           persist-credentials: false
 
       - name: Download synced files
@@ -177,6 +184,7 @@ jobs:
         env:
           TAG: ${{ needs.build.outputs.tag }}
           SHA: ${{ needs.build.outputs.sha }}
+          WEBSITE_SHA: ${{ needs.build.outputs.website_sha }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -217,10 +225,15 @@ jobs:
           fi
           # Pushes and PRs made with GITHUB_TOKEN do not trigger pull_request
           # workflows, so check.yml never reports `required` on this PR. The
-          # `build` job already ran the same tests, build and link check on
-          # these exact files (this job only copies them), so report that
-          # result as the `required` commit status on the pushed head.
+          # `build` job ran the same tests, build and link check on the website
+          # commit this job checked out plus these synced files (this job only
+          # copies them), so report that result as the `required` commit status
+          # on the pushed head, whose parent is that commit.
           head_sha=$(git rev-parse HEAD)
+          if [[ "$(git rev-parse HEAD~1)" != "$WEBSITE_SHA" ]]; then
+            echo "::error::pushed head is not the verified website commit plus the sync; not reporting required"
+            exit 1
+          fi
           gh api "repos/$REPO/statuses/$head_sha" \
             -f state=success -f context=required \
             -f description="release-sync: tests, build and link check passed" \
