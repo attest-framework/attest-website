@@ -3,7 +3,7 @@ title: "Baselines"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/baselines.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.0.0 (79348223e6926a4128777e70670ab8f52ebbc421) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A baseline is a pinned report-v2: the status, score, cost and duration of every assertion at a point you trust, stored under a tag. `attest policy evaluate --baseline <tag>` compares a new report with it, so a policy can block a change that makes assertions that used to pass fail, or lowers a pass rate measured over fixed-N trials. See [policies](/sdk-guides/policies/) for the rules that act on the comparison.
 
@@ -37,7 +37,7 @@ Baselines are rows in `attest.db` under `ATTEST_CACHE_DIR` (default `~/.attest/c
 uv run attest policy evaluate --policy attest.policy.yaml --report attest-report.json --baseline main
 ```
 
-The evaluation names a tag that does not exist as an error (exit 3), not as a pass. Without `--baseline`, the policy's regression rules do not run.
+The evaluation names a tag that does not exist as an error (exit 3), not as a pass. A policy that sets `block_on_regression: true` or a `regression` rule needs `--baseline`; without it `attest policy evaluate` exits 3 and names the missing flag. `block_on_regression: false` needs nothing.
 
 `attest policy evaluate` prints its violations as JSON; the comparison reaches the output only through the policy rules. `block_on_regression: true` adds a `block_on_regression` violation naming each assertion that passed in the baseline and does not now (an assertion that was added or removed is not a regression), and a `regression` rule adds a verdict per assertion.
 
