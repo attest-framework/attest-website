@@ -109,8 +109,14 @@ jobs:
           SHA: ${{ steps.release.outputs.sha }}
         run: node scripts/sync-release.mjs .attest-src "$TAG" "$SHA"
 
+      - name: Test sync scripts
+        run: pnpm test
+
       - name: Build site
         run: pnpm build
+
+      - name: Check internal links
+        run: node scripts/check-links.mjs dist
 
       - name: Upload synced files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -128,6 +134,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      statuses: write
     steps:
       - name: Checkout website
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -172,6 +179,7 @@ jobs:
           SHA: ${{ needs.build.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           git add -A -- src/synced src/content/docs/sdk-guides
           if git diff --cached --quiet; then
@@ -207,3 +215,13 @@ jobs:
               --title "docs(changelog): sync changelog and guides from attest $TAG" \
               --body "$body"
           fi
+          # Pushes and PRs made with GITHUB_TOKEN do not trigger pull_request
+          # workflows, so check.yml never reports `required` on this PR. The
+          # `build` job already ran the same tests, build and link check on
+          # these exact files (this job only copies them), so report that
+          # result as the `required` commit status on the pushed head.
+          head_sha=$(git rev-parse HEAD)
+          gh api "repos/$REPO/statuses/$head_sha" \
+            -f state=success -f context=required \
+            -f description="release-sync: tests, build and link check passed" \
+            -f target_url="$RUN_URL"
