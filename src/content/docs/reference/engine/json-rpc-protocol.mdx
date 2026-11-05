@@ -289,7 +289,7 @@ Submit an externally-computed plugin result to the engine.
 
 ### `query_drift`
 
-Query drift status for an assertion against historical scores. Returns σ-based deviation analysis.
+Report whether the newest recorded run of an assertion departs from its baseline. Requires an initialized session. Read-only: it never writes history.
 
 **Request:**
 
@@ -299,11 +299,17 @@ Query drift status for an assertion against historical scores. Returns σ-based 
   "id": 4,
   "method": "query_drift",
   "params": {
-    "assertion_id": "assert_abc123",
-    "window_size": 50
+    "assertion_id": "a2_b328096a69ea78d9327faeb1d4832f97",
+    "static_threshold": 0.6
   }
 }
 ```
+
+| Param              | Type               | Required | Description                                                                                                                                                                 |
+| ------------------ | ------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assertion_id`     | `string`           | yes      | History key: the assertion id from the report (id scheme 2) or the runner scope.                                                                                            |
+| `static_threshold` | number in [0, 1]   | no       | The assertion's static pass threshold; the dynamic bar never falls below it. Omitted or `null` means `0.8`; an explicit `0` is honoured. Anything else outside [0, 1], or a non-number, is rejected with `ASSERTION_ERROR` (1002, `invalid query_drift params`). |
+| `window_size`      | `integer`          | no       | Accepted and ignored: the window is fixed at 50.                                                                                                                            |
 
 **Response:**
 
@@ -313,28 +319,32 @@ Query drift status for an assertion against historical scores. Returns σ-based 
   "id": 4,
   "result": {
     "report": {
-      "assertion_id": "assert_abc123",
-      "mean": 0.87,
-      "stddev": 0.04,
-      "count": 50,
-      "latest_score": 0.76,
-      "deviation": -2.75,
-      "status": "drift_detected"
-    }
+      "assertion_id": "a2_b328096a69ea78d9327faeb1d4832f97",
+      "mean": 0.7,
+      "stddev": 0.0,
+      "count": 10,
+      "latest_score": 0.7,
+      "deviation": 0.0,
+      "status": "ok"
+    },
+    "static_threshold": 0.6
   }
 }
 ```
 
-| Field         | Type      | Description                                                  |
-| ------------- | --------- | ------------------------------------------------------------ |
-| `mean`        | `number`  | Rolling mean of scores in window                             |
-| `stddev`      | `number`  | Standard deviation                                           |
-| `count`       | `integer` | Number of scores in window                                   |
-| `latest_score`| `number`  | Most recent score                                            |
-| `deviation`   | `number`  | (latest − mean) / stddev, in σ units                         |
-| `status`      | `string`  | `"stable"`, `"drift_detected"`, or `"no_data"`               |
+| Field              | Type      | Description                                                                 |
+| ------------------ | --------- | --------------------------------------------------------------------------- |
+| `mean`             | `number`  | Mean of the baseline scores                                                 |
+| `stddev`           | `number`  | Standard deviation of the baseline scores                                   |
+| `count`            | `integer` | Number of baseline rows                                                     |
+| `latest_score`     | `number`  | Score of the newest run, the one being judged                               |
+| `deviation`        | `number`  | Deviation of `latest_score` from the baseline                               |
+| `status`           | `string`  | `"drift_detected"` or `"ok"`                                                |
+| `static_threshold` | `number`  | The floor the engine resolved (`0.8` when the request omitted it)           |
 
-Emits a `drift_alert` JSON-RPC notification when status is `drift_detected`.
+`report.status` is `drift_detected` when the baseline is active and `latest_score` is below the bar, otherwise `ok`.
+
+**Estimator.** The baseline is the newest 50 passing and soft-failing runs before the newest run (the newest run, whatever its status, is the one judged). Hard failures never enter the baseline. The bar is `max(static_threshold, mean − 2·max(stddev, 0.02))`. The baseline needs at least 10 eligible prior runs (cold start): with fewer, `status` is `ok` and `count` is below 10. The same cold start omits `results[].drift` from `evaluate_batch`, where a hard failure is then judged against the static threshold alone. History is ordered by insertion, newest first.
 
 ### `generate_user_message`
 

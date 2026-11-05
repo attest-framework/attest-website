@@ -1,247 +1,67 @@
 ---
 title: "Drift Detection"
-description: "Monitor agent behavior changes over time using continuous evaluation and alerting."
+description: "How Attest measures a score against the assertion's own history: the dynamic pass bar, the cold start, query_drift, and alerts."
 ---
 
-Drift detection uses the [continuous evaluation](/guides/continuous-eval/) pipeline to monitor how agent behavior changes over time. When assertions that previously passed start failing, the system dispatches alerts via webhooks and Slack.
+Drift detection compares an assertion's newest score with the engine's history of that same assertion. It surfaces in three places: the `"dynamic"` threshold on judge and similarity assertions, the `query_drift` engine method, and the alerts of the [continuous evaluation](/guides/continuous-eval/) runner.
 
-## What is Drift?
+## What is drift?
 
 Agent drift occurs when an AI agent's behavior changes without code changes. Common causes:
 
-- **Model updates** — Provider deploys a new model version
-- **Data drift** — Input distribution shifts over time
-- **Tool changes** — External APIs change behavior or rate limits
-- **Prompt sensitivity** — Subtle changes in system prompts cascade
-- **Context degradation** — RAG retrieval quality degrades as data grows stale
+- **Model updates**: the provider deploys a new model version
+- **Data drift**: the input distribution shifts over time
+- **Tool changes**: external APIs change behavior or rate limits
+- **Prompt sensitivity**: subtle changes in system prompts cascade
+- **Context degradation**: RAG retrieval quality degrades as data grows stale
 
-## Configuration
+## The estimator
 
-### Global Config
+The engine keeps one history row per evaluation under the assertion id. The baseline is the newest 50 rows that passed or soft-failed, taken before the row being judged. Hard failures never enter the baseline, so a run of failures cannot lower the bar.
+
+With at least 10 baseline rows, a score is below the bar when
+
+```text
+score < max(static_threshold, mean − 2·max(σ, 0.02))
+```
+
+`static_threshold` is the assertion's own numeric threshold, or `0.8` when it has none (a missing threshold, or one at or below 0, is `0.8`). The floor means a dynamic assertion is never easier than the default static one, and the σ floor of 0.02 keeps a history of identical scores from failing on noise. The window of 50, the factor 2 and both floors are fixed; nothing configures them.
+
+| History (newest score last) | Score | Result |
+|---|---|---|
+| ten runs at 0.9 | 0.5 | below the bar (`hard_fail` with `drift`) |
+| ten runs at 1.0 | 0.99 | above the bar (0.96) |
+| ten runs at 0.0 | 0.0 | the zeros are not in the baseline; 0.0 is below the static 0.8 |
+| fewer than 10 passing or soft rows | any | static threshold alone, no drift |
+
+### Cold start
+
+A baseline is active only with at least 10 passing or soft-failing runs. Before that, `query_drift` reports `ok` and no drift is flagged; a hard failure is judged by the static threshold alone. Evaluations that are `not_evaluated`, including simulation runs, are not recorded and never move a baseline.
+
+History lives under `ATTEST_CACHE_DIR`. A CI job that starts with an empty cache is always in the cold start, so `"dynamic"` behaves as the static `0.8` there until the directory is restored between runs.
+
+## Dynamic thresholds
+
+`output_similar_to` (Layer 5) and `passes_judge` (Layer 6) accept `threshold="dynamic"` (`"dynamic"` in TypeScript options too). The score is judged against the bar above instead of a fixed value. A score below the bar is a `hard_fail` (a `soft_fail` when the assertion is `soft`), even when the score is above 0.8. The result carries `threshold_source: "dynamic"` and, on a hard failure below the bar, a `drift` object with `assertion_id`, `mean`, `stddev`, `count` of baseline rows, `latest_score`, `deviation` and `status: "drift_detected"`.
 
 ```python
-from attest import config
-
-config(
-    sample_rate=0.05,
-    alert_webhook="https://hooks.example.com/attest-drift",
-    alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
-)
+expect(result).passes_judge("is polite", threshold="dynamic")
+expect(result).output_similar_to("reference", threshold="dynamic")
 ```
 
-### Environment Variables
+If the engine has no history store, or reading it fails, the assertion is judged by the static threshold and `threshold_source` is `dynamic_unavailable`.
 
-| Variable | Description |
-|----------|-------------|
-| `ATTEST_SAMPLE_RATE` | Fraction of traces to evaluate for drift |
-| `ATTEST_ALERT_WEBHOOK` | Webhook URL for drift alerts |
-| `ATTEST_ALERT_SLACK_URL` | Slack webhook URL for drift alerts |
+## Querying drift directly
 
-## Setting Up Drift Assertions
+The `query_drift` method reports whether the newest recorded run of an assertion departs from its baseline. It is read-only and never writes history. It takes an optional `static_threshold` (default `0.8`); the window is fixed at 50 and `window_size` is accepted and ignored. Its report status is `drift_detected` or `ok`. See the [JSON-RPC protocol reference](/reference/engine/json-rpc-protocol/).
 
-Define assertions that capture your agent's expected behavior baseline:
+## Alerts
 
-```python
-from attest import Assertion
+To get an alert instead of a test failure, run the assertions on live traces with `ContinuousEvalRunner`. It reads drift for every evaluated assertion and posts to a webhook or Slack when an assertion is `drift_detected` or `hard_fail`. Alert payloads, error handling, `stop()` draining, and the assertion id scheme are in [Continuous evaluation](/guides/continuous-eval/).
 
-drift_assertions = [
-    # Output quality — should always produce helpful responses
-    Assertion(
-        assertion_id="drift_no_errors",
-        type="content",
-        spec={
-            "target": "output.message",
-            "check": "forbidden",
-            "values": ["I cannot", "I'm unable", "error occurred", "stacktrace"],
-        },
-    ),
+Deterministic assertions (layers 1-4) score 0 or 1, so their baseline is a flat 1.0 and a failure is a hard failure on any history. Drift is most informative on layer 5 and 6 scores, which vary run to run.
 
-    # Latency — agent should respond within SLO
-    Assertion(
-        assertion_id="drift_latency",
-        type="constraint",
-        spec={"field": "metadata.latency_ms", "operator": "lte", "value": 5000, "soft": True},
-    ),
-
-    # Cost — per-request cost should stay within budget
-    Assertion(
-        assertion_id="drift_cost",
-        type="constraint",
-        spec={"field": "metadata.cost_usd", "operator": "lte", "value": 0.05},
-    ),
-
-    # Tool usage — agent should call the expected tools
-    Assertion(
-        assertion_id="drift_tools",
-        type="trace",
-        spec={"check": "required_tools", "tools": ["search", "format_response"], "soft": True},
-    ),
-
-    # Token budget — prevent token explosion from loops
-    Assertion(
-        assertion_id="drift_tokens",
-        type="constraint",
-        spec={"field": "metadata.total_tokens", "operator": "lte", "value": 4000},
-    ),
-
-    # No tool loops
-    Assertion(
-        assertion_id="drift_no_loops",
-        type="trace",
-        spec={"check": "loop_detection", "tool": "search", "max_repetitions": 3},
-    ),
-]
-```
-
-:::tip
-Use `"soft": true` for assertions that track trends rather than hard failures. Soft failures are counted separately in the pytest cost report and do not fail tests.
-:::
-
-## Alert Payload
-
-When an assertion fails, the `AlertDispatcher` sends a payload to configured endpoints:
-
-```json
-{
-  "drift_type": "constraint_violation",
-  "score": 0.0,
-  "trace_id": "trc_abc123def456",
-  "assertion_id": "drift_latency",
-  "explanation": "metadata.latency_ms (8200) > 5000"
-}
-```
-
-### Slack Format
-
-```
-[attest] drift alert — type=constraint_violation score=0.0 trace_id=trc_abc123def456
-```
-
-## Drift Detection Patterns
-
-### Pattern 1: Output Quality Regression
-
-Detect when model updates cause the agent to produce lower-quality outputs:
-
-```python
-# Content assertions catch obvious quality drops
-Assertion(
-    assertion_id="quality_keywords",
-    type="content",
-    spec={
-        "target": "output.message",
-        "check": "keyword_any",
-        "values": ["helpful", "here's", "found"],
-        "soft": True,
-    },
-)
-```
-
-### Pattern 2: Cost Explosion
-
-Detect when changes cause the agent to use more tokens:
-
-```python
-Assertion(
-    assertion_id="cost_budget",
-    type="constraint",
-    spec={"field": "metadata.cost_usd", "operator": "lte", "value": 0.02},
-)
-
-Assertion(
-    assertion_id="token_budget",
-    type="constraint",
-    spec={
-        "field": "metadata.total_tokens",
-        "operator": "between",
-        "min": 100,
-        "max": 3000,
-    },
-)
-```
-
-### Pattern 3: Tool Behavior Changes
-
-Detect when the agent stops using expected tools or starts looping:
-
-```python
-# Required tools
-Assertion(
-    assertion_id="tool_presence",
-    type="trace",
-    spec={"check": "required_tools", "tools": ["search", "summarize"]},
-)
-
-# No infinite loops
-Assertion(
-    assertion_id="no_loops",
-    type="trace",
-    spec={"check": "loop_detection", "tool": "search", "max_repetitions": 2},
-)
-
-# Forbidden tools (deprecated or dangerous)
-Assertion(
-    assertion_id="no_deprecated",
-    type="trace",
-    spec={"check": "forbidden_tools", "tools": ["old_search_v1", "unsafe_eval"]},
-)
-```
-
-### Pattern 4: Multi-Agent Delegation Drift
-
-For multi-agent systems, detect when delegation patterns change:
-
-```python
-# Expected delegation structure
-Assertion(
-    assertion_id="delegation_structure",
-    type="trace_tree",
-    spec={
-        "check": "follows_transitions",
-        "transitions": [["orchestrator", "researcher"], ["orchestrator", "writer"]],
-    },
-)
-
-# Depth limit — prevent runaway recursion
-Assertion(
-    assertion_id="delegation_depth",
-    type="trace_tree",
-    spec={"check": "delegation_depth", "max_depth": 3},
-)
-```
-
-## Production Deployment
-
-### FastAPI Example
-
-```python
-from attest import Assertion, ContinuousEvalRunner
-from attest.client import AttestClient
-from attest.engine_manager import EngineManager
-
-async def setup_drift_monitor():
-    engine = EngineManager()
-    await engine.start()
-    client = AttestClient(engine)
-
-    runner = ContinuousEvalRunner(
-        client=client,
-        assertions=drift_assertions,  # from examples above
-        sample_rate=0.05,
-        alert_webhook="https://hooks.example.com/attest",
-        alert_slack_url="https://hooks.slack.com/services/T.../B.../xxx",
-    )
-    await runner.start()
-    return runner, engine
-
-# In request handler
-async def handle(query: str, runner: ContinuousEvalRunner):
-    result = await my_agent(query)
-    await runner.submit(result.trace)
-    return result
-```
-
-### Sample Rate Guidelines
+### Sample rate guidelines
 
 | Environment | Rate | Rationale |
 |-------------|------|-----------|
@@ -250,11 +70,11 @@ async def handle(query: str, runner: ContinuousEvalRunner):
 | Production (layers 1-4 only) | `0.1`-`0.5` | Free assertions, higher coverage |
 | Production (with layers 5-6) | `0.01`-`0.05` | Paid assertions, minimize cost |
 
-## Relationship to Testing
+A low sample rate lengthens the cold start: the baseline needs 10 evaluated runs, not 10 requests.
 
-Drift detection complements test-time assertions:
+## Relationship to testing
 
-| Concern | Test-time (`pytest`) | Production (drift) |
+| Concern | Test-time (`pytest`) | Production (continuous eval) |
 |---------|---------------------|-------------------|
 | When | CI/CD pipeline | Live traffic |
 | Coverage | Synthetic test cases | Real user inputs |
@@ -262,4 +82,4 @@ Drift detection complements test-time assertions:
 | Assertions | All layers | Layers 1-4 preferred |
 | Failure mode | Test failure | Alert notification |
 
-Use tests for comprehensive assertion coverage with synthetic inputs. Use drift detection for lightweight monitoring with real production traffic.
+Use tests for comprehensive assertion coverage with synthetic inputs. Use continuous evaluation for lightweight monitoring with real production traffic.
