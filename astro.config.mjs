@@ -1,12 +1,75 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import rehypeMermaid from "rehype-mermaid";
 import { existsSync } from "node:fs";
 
 // Written only by scripts/sync-release.mjs; absent until the first release sync.
 const hasSyncedGuides = existsSync(new URL("./src/content/docs/sdk-guides", import.meta.url));
 
+
+// Build-time mermaid rendering (inline SVG, no client JS). Theme variables
+// mirror the design tokens in src/styles/custom.css.
+const mermaidTheme = {
+  theme: "base",
+  themeVariables: {
+    darkMode: true,
+    background: "#15161A",
+    primaryColor: "#1E2127",
+    primaryTextColor: "#EDEEF0",
+    primaryBorderColor: "#4CC9F0",
+    secondaryColor: "#1A1C21",
+    secondaryTextColor: "#C2C6CC",
+    secondaryBorderColor: "#383C45",
+    tertiaryColor: "#1A1C21",
+    tertiaryTextColor: "#C2C6CC",
+    tertiaryBorderColor: "#2A2D34",
+    lineColor: "#9A9FA8",
+    textColor: "#C2C6CC",
+    fontFamily: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontSize: "15px",
+    noteBkgColor: "#1E2127",
+    noteTextColor: "#EDEEF0",
+    noteBorderColor: "#5F646E",
+    actorBkg: "#1A1C21",
+    actorTextColor: "#EDEEF0",
+    actorBorder: "#4CC9F0",
+    actorLineColor: "#5F646E",
+    signalColor: "#9A9FA8",
+    signalTextColor: "#C2C6CC",
+    labelBoxBkgColor: "#1A1C21",
+    labelBoxBorderColor: "#2A2D34",
+    labelTextColor: "#EDEEF0",
+    loopTextColor: "#C2C6CC",
+    activationBkgColor: "#0E3D4D",
+    activationBorderColor: "#4CC9F0",
+    sequenceNumberColor: "#15161A",
+    clusterBkg: "#17181D",
+    clusterBorder: "#2A2D34",
+    edgeLabelBackground: "#17181D",
+    classText: "#EDEEF0",
+  },
+};
 export default defineConfig({
   site: "https://attest-framework.github.io",
+  markdown: {
+    syntaxHighlight: {
+      type: "shiki",
+      excludeLangs: ["mermaid"],
+    },
+    rehypePlugins: [
+      [
+        rehypeMermaid,
+        {
+          strategy: "inline-svg",
+          colorScheme: "dark",
+          // Load the site fonts into the headless rendering page so text
+          // measurement matches what the site displays (prevents label clipping).
+          css: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+          mermaidConfig: mermaidTheme,
+        },
+      ],
+    ],
+  },
   integrations: [
     starlight({
       title: "Attest Framework",
