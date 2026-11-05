@@ -83,9 +83,23 @@ export default defineConfig({
         },
       ],
       logo: {
-        src: "./src/assets/attest-logo.png",
+        src: "./src/assets/logo.svg",
         replacesTitle: false,
       },
+      head: [
+        {
+          tag: "meta",
+          attrs: { property: "og:image", content: "https://attest-framework.github.io/og.png" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:card", content: "summary_large_image" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:image", content: "https://attest-framework.github.io/og.png" },
+        },
+      ],
       favicon: "/favicon.png",
       components: {
         ThemeProvider: "./src/overrides/ThemeProvider.astro",
@@ -93,12 +107,12 @@ export default defineConfig({
         Header: "./src/overrides/Header.astro",
       },
       customCss: [
-        "@fontsource/inter/400.css",
-        "@fontsource/inter/500.css",
-        "@fontsource/inter/600.css",
-        "@fontsource/inter/700.css",
-        "@fontsource/jetbrains-mono/400.css",
-        "@fontsource/jetbrains-mono/500.css",
+        "@fontsource/ibm-plex-sans/400.css",
+        "@fontsource/ibm-plex-sans/500.css",
+        "@fontsource/ibm-plex-sans/600.css",
+        "@fontsource/ibm-plex-mono/400.css",
+        "@fontsource/ibm-plex-mono/500.css",
+        "@fontsource/ibm-plex-mono/600.css",
         "./src/styles/custom.css",
       ],
       editLink: {

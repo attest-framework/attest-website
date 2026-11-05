@@ -1,421 +1,313 @@
 /* ================================================================
-   Attest Framework — Dark-Only Theme (logo-derived palette)
+   Attest — "Replay" brand system (dark only)
    ================================================================
-   Single dark theme. No light mode. Colors extracted from the
-   glowing "A" logo: ice-white → mint → teal gradient on dark navy.
+   Grounding: record once (● rec, red) / replay forever (▶ play, cyan).
+   Verdict triad: pass #44D7A8 · fail #FF5C5C · not_evaluated gray.
+   Type: IBM Plex Mono (display, h1/h2, code) + IBM Plex Sans (body).
 
-   IMPORTANT: Starlight's gray scale convention is gray-1 = lightest,
-   gray-7 = darkest. Our design palette is the inverse (gray-1 = darkest
-   surface, gray-7 = lightest text). We keep our intuitive ordering and
-   override ALL Starlight derived variables explicitly.
+   Grays follow Starlight's own dark-theme convention
+   (white = brightest text … gray-6 = darkest raised surface,
+   black = page background) so Starlight's derived variables work
+   without per-component patches.
    ================================================================ */
 
-/* ----------------------------------------------------------------
-   ROOT TOKENS
-   ---------------------------------------------------------------- */
 :root,
 :root[data-theme="dark"] {
-  /* Background hierarchy (progressive lightness for elevation) */
-  --sl-color-black: #0C1017;
-  --sl-color-gray-1: #111822;
-  --sl-color-gray-2: #18202B;
-  --sl-color-gray-3: #1F2937;
-  --sl-color-gray-4: #4B5C6F;
-  --sl-color-gray-5: #8899AB;
-  --sl-color-gray-6: #BCC8D6;
-  --sl-color-gray-7: #E0E8F0;
-  --sl-color-white: #F0F5FA;
+  /* Text ladder (light → dark) */
+  --sl-color-white: #EDEEF0;
+  --sl-color-gray-1: #DDE0E4;
+  --sl-color-gray-2: #C2C6CC;
+  --sl-color-gray-3: #9A9FA8;
+  --sl-color-gray-4: #5F646E;
+  --sl-color-gray-5: #383C45;
+  --sl-color-gray-6: #23262C;
+  --sl-color-black: #15161A;
 
-  /* Accent (logo gradient: ice-white apex → mint → teal) */
-  --sl-color-accent: #2DD4BF;
-  --sl-color-accent-high: #5EEAD4;
-  --sl-color-accent-low: #0A2E2B;
+  /* Accent: playback cyan */
+  --sl-color-accent-low: #0E3D4D;
+  --sl-color-accent: #4CC9F0;
+  --sl-color-accent-high: #9ADFF7;
 
-  /* Starlight derived variables — explicit overrides.
-     These normally reference gray-N assuming gray-1=lightest, gray-7=darkest.
-     We remap them to our inverted scale. */
+  /* Derived surfaces */
   --sl-color-bg: var(--sl-color-black);
-  --sl-color-bg-nav: var(--sl-color-gray-1);
-  --sl-color-bg-sidebar: var(--sl-color-gray-1);
-  --sl-color-bg-inline-code: var(--sl-color-gray-2);
-  --sl-color-bg-accent: var(--sl-color-accent);
-  --sl-color-text: var(--sl-color-gray-6);
-  --sl-color-text-accent: var(--sl-color-accent-high);
-  --sl-color-text-invert: var(--sl-color-black);
-  --sl-color-hairline-light: var(--sl-color-gray-3);
-  --sl-color-hairline: var(--sl-color-gray-3);
-  --sl-color-hairline-shade: var(--sl-color-gray-4);
-  --sl-color-backdrop-overlay: rgba(12, 16, 23, 0.65);
+  --sl-color-bg-nav: #1A1C21;
+  --sl-color-bg-sidebar: #17181D;
+  --sl-color-bg-inline-code: #23262C;
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent);
+  --sl-color-hairline-light: #2A2D34;
+  --sl-color-hairline: #2A2D34;
+  --sl-color-hairline-shade: #1E2127;
+  --sl-color-backdrop-overlay: rgba(14, 15, 18, 0.7);
 
-  /* Custom accent extensions */
-  --attest-accent-glow: rgba(45, 212, 191, 0.15);
-  --attest-accent-subtle: rgba(45, 212, 191, 0.06);
+  /* Brand roles */
+  --replay-rec: #FF5C5C;        /* record / fail / expensive */
+  --replay-play: #4CC9F0;       /* replay / interactive accent */
+  --replay-pass: #44D7A8;       /* pass / free tier */
+  --replay-surface-1: #1A1C21;  /* raised card */
+  --replay-surface-2: #1E2127;  /* row / inset */
+  --replay-border: #2A2D34;
+  --replay-border-strong: #383C45;
+  --replay-glow: rgba(76, 201, 240, 0.14);
 
-  /* Tier colors (boosted saturation/lightness for dark bg) */
-  --attest-tier-free: #22C55E;
-  --attest-tier-cheap: #F59E0B;
-  --attest-tier-expensive: #EF4444;
-  --attest-tier-free-bg: rgba(34, 197, 94, 0.10);
-  --attest-tier-cheap-bg: rgba(245, 158, 11, 0.10);
-  --attest-tier-expensive-bg: rgba(239, 68, 68, 0.10);
-
-  /* Borders */
-  --attest-border-subtle: #1F2937;
-  --attest-border-medium: #2A3544;
-  --attest-border-accent: rgba(45, 212, 191, 0.3);
+  /* Tier colors (pipeline) */
+  --attest-tier-free: var(--replay-pass);
+  --attest-tier-cheap: var(--replay-play);
+  --attest-tier-expensive: var(--replay-rec);
+  --attest-tier-free-bg: rgba(68, 215, 168, 0.08);
+  --attest-tier-cheap-bg: rgba(76, 201, 240, 0.08);
+  --attest-tier-expensive-bg: rgba(255, 92, 92, 0.08);
 
   /* Semantic */
-  --attest-success: #22C55E;
-  --attest-warning: #F59E0B;
-  --attest-error: #EF4444;
-  --attest-info: #3B82F6;
+  --attest-success: var(--replay-pass);
+  --attest-warning: #F2B544;
+  --attest-error: var(--replay-rec);
+  --attest-info: var(--replay-play);
 
-  /* Typography stacks */
-  --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --sl-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
+  /* Legacy aliases still referenced by overrides */
+  --attest-border-subtle: var(--replay-border);
+  --attest-border-medium: var(--replay-border-strong);
+  --attest-border-accent: rgba(76, 201, 240, 0.35);
+  --attest-accent-glow: var(--replay-glow);
+  --attest-accent-subtle: rgba(76, 201, 240, 0.06);
 
-  /* Component spacing */
+  /* Typography */
+  --sl-font: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+
   --attest-section-gap: 3rem;
 }
 
-/* Kill any light-mode token leakage — mirror everything from above */
+/* Mirror everything for any light-theme leakage; the site is dark only. */
 :root[data-theme="light"] {
-  --sl-color-black: #0C1017;
-  --sl-color-gray-1: #111822;
-  --sl-color-gray-2: #18202B;
-  --sl-color-gray-3: #1F2937;
-  --sl-color-gray-4: #4B5C6F;
-  --sl-color-gray-5: #8899AB;
-  --sl-color-gray-6: #BCC8D6;
-  --sl-color-gray-7: #E0E8F0;
-  --sl-color-white: #F0F5FA;
-  --sl-color-accent: #2DD4BF;
-  --sl-color-accent-high: #5EEAD4;
-  --sl-color-accent-low: #0A2E2B;
-  --sl-color-bg: #0C1017;
-  --sl-color-bg-nav: #111822;
-  --sl-color-bg-sidebar: #111822;
-  --sl-color-bg-inline-code: #18202B;
-  --sl-color-bg-accent: #2DD4BF;
-  --sl-color-text: #BCC8D6;
-  --sl-color-text-accent: #5EEAD4;
-  --sl-color-text-invert: #0C1017;
-  --sl-color-hairline-light: #1F2937;
-  --sl-color-hairline: #1F2937;
-  --sl-color-hairline-shade: #4B5C6F;
+  --sl-color-white: #EDEEF0;
+  --sl-color-gray-1: #DDE0E4;
+  --sl-color-gray-2: #C2C6CC;
+  --sl-color-gray-3: #9A9FA8;
+  --sl-color-gray-4: #5F646E;
+  --sl-color-gray-5: #383C45;
+  --sl-color-gray-6: #23262C;
+  --sl-color-black: #15161A;
+  --sl-color-accent-low: #0E3D4D;
+  --sl-color-accent: #4CC9F0;
+  --sl-color-accent-high: #9ADFF7;
+  --sl-color-bg: var(--sl-color-black);
+  --sl-color-text: var(--sl-color-gray-2);
 }
 
 /* ----------------------------------------------------------------
-   GLOBAL OVERRIDES
+   GLOBAL
    ---------------------------------------------------------------- */
 body {
+  font-feature-settings: 'ss01' on;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Focus ring: accent outline + glow */
 :focus-visible {
-  outline: 2px solid var(--sl-color-accent);
+  outline: 2px solid var(--replay-play);
   outline-offset: 2px;
-  box-shadow: 0 0 12px var(--attest-accent-glow);
 }
 
-/* ----------------------------------------------------------------
-   STARLIGHT HEADER / NAV
-   ---------------------------------------------------------------- */
-header.header {
-  background-color: var(--sl-color-gray-1);
-  border-bottom: 1px solid var(--attest-border-subtle);
+::selection {
+  background: rgba(76, 201, 240, 0.25);
 }
 
-/* ----------------------------------------------------------------
-   STARLIGHT SIDEBAR
-   Starlight components use var(--sl-color-gray-2) for sidebar links,
-   which in our inverted palette maps to #18202B (invisible on dark bg).
-   Override to readable values.
-   ---------------------------------------------------------------- */
-starlight-menu-button + nav a[aria-current="page"],
-.sidebar-content a[aria-current="page"] {
-  background: var(--sl-color-accent-low);
-  color: var(--sl-color-accent);
-}
-
-/* Sidebar links: override Starlight's gray-2 (dark in our palette) */
-nav ul a:where(:not([aria-current="page"])) {
-  color: var(--sl-color-gray-5);
-}
-nav ul a:where(:not([aria-current="page"])):hover,
-nav ul a:where(:not([aria-current="page"])):focus {
-  color: var(--sl-color-white);
-}
-
-/* ----------------------------------------------------------------
-   TABLE OF CONTENTS (right sidebar)
-   Starlight uses color: var(--sl-color-gray-3) → #1F2937 in our
-   inverted palette, invisible on dark background.
-   ---------------------------------------------------------------- */
-.right-sidebar-panel a {
-  color: var(--sl-color-gray-5);
-}
-.right-sidebar-panel a:hover {
-  color: var(--sl-color-white);
-}
-.right-sidebar-panel a[aria-current="true"] {
-  color: var(--sl-color-accent);
-}
-
-/* ----------------------------------------------------------------
-   SEARCH DIALOG
-   Starlight uses var(--sl-color-gray-6) for dialog bg, which is
-   #BCC8D6 (light) in our inverted palette. Override to dark theme.
-   ---------------------------------------------------------------- */
-site-search dialog {
-  background-color: var(--sl-color-gray-1);
-  border-color: var(--attest-border-medium);
-}
-
-/* Search button (header bar): fix invisible text */
-site-search button[data-open-modal] {
-  color: var(--sl-color-gray-5);
-}
-@media (min-width: 50rem) {
-  site-search button[data-open-modal] {
-    background-color: var(--sl-color-gray-2);
-    border-color: var(--attest-border-medium);
-    color: var(--sl-color-gray-5);
-  }
-  site-search button[data-open-modal]:hover {
-    border-color: var(--sl-color-accent);
-    color: var(--sl-color-white);
-  }
-}
-
-/* Keyboard shortcut badge in search button */
-site-search button > kbd {
-  background-color: var(--sl-color-gray-3);
-}
-
-/* Pagefind UI overrides for dark theme */
-#starlight__search {
-  --pagefind-ui-text: var(--sl-color-gray-6);
-  --pagefind-ui-background: var(--sl-color-gray-2);
-  --pagefind-ui-border: var(--attest-border-medium);
-  --pagefind-ui-tag: var(--sl-color-gray-3);
-}
-
-#starlight__search .pagefind-ui__form::before {
-  --pagefind-ui-text: var(--sl-color-gray-5);
-}
-
-#starlight__search .pagefind-ui__search-input {
-  color: var(--sl-color-white);
-}
-
-#starlight__search input:focus {
-  --pagefind-ui-border: var(--sl-color-accent);
-}
-
-#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
-#starlight__search .pagefind-ui__result-nested {
-  background-color: var(--sl-color-gray-2);
-}
-
-#starlight__search .pagefind-ui__result-link {
-  --pagefind-ui-text: var(--sl-color-white);
-}
-
-#starlight__search mark {
-  color: var(--sl-color-accent-high);
-  background-color: transparent;
+/* Display type: mono carries the brand on page + section headings */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+h1[data-page-title] {
+  font-family: var(--sl-font-mono);
+  letter-spacing: -0.03em;
   font-weight: 600;
 }
 
-#starlight__search .pagefind-ui__result-excerpt {
-  color: var(--sl-color-gray-5);
+.sl-markdown-content h2 {
+  border-bottom: 1px solid var(--replay-border);
+  padding-bottom: 0.4rem;
 }
 
-#starlight__search .pagefind-ui__result-tags {
-  background-color: var(--sl-color-gray-2);
+/* Site title */
+.site-title {
+  font-family: var(--sl-font-mono);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--sl-color-white);
 }
 
 /* ----------------------------------------------------------------
-   STARLIGHT HERO (built-in component)
-   Targets the .hero class generated by Starlight's Hero.astro.
+   HEADER
+   ---------------------------------------------------------------- */
+header.header {
+  background: rgba(21, 22, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--replay-border);
+}
+
+/* ----------------------------------------------------------------
+   HERO (Starlight splash)
    ---------------------------------------------------------------- */
 .hero {
   background:
-    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
-    var(--sl-color-gray-1);
-  border-bottom: 1px solid var(--attest-border-subtle);
+    radial-gradient(ellipse 56% 44% at 50% 0%, rgba(76, 201, 240, 0.10) 0%, transparent 70%),
+    var(--sl-color-black);
+  border-bottom: 1px solid var(--replay-border);
   padding-bottom: 3rem;
 }
 
-/* Gradient text on hero H1 (white → teal, mirrors logo "A") */
 .hero h1 {
-  background: linear-gradient(135deg, #F0F5FA 30%, #2DD4BF 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-family: var(--sl-font-mono);
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 
-/* Hero tagline */
 .hero .tagline {
-  color: var(--sl-color-gray-5);
+  color: var(--sl-color-gray-3);
+  font-size: 1.125rem;
 }
 
-/* Starlight link buttons (hero CTAs) */
+.hero img {
+  width: min(100%, 21rem);
+  margin-inline: auto;
+  filter: drop-shadow(0 0 48px rgba(76, 201, 240, 0.25));
+}
+
 .sl-link-button.primary {
-  background: var(--sl-color-accent);
-  color: var(--sl-color-black);
-  border-color: var(--sl-color-accent);
+  background: var(--replay-play);
+  color: #06252E;
+  border-color: var(--replay-play);
+  border-radius: 6px;
   font-weight: 600;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sl-link-button.primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 0 20px var(--attest-accent-glow);
+  box-shadow: 0 0 24px var(--replay-glow);
 }
 
 .sl-link-button.minimal {
-  color: var(--sl-color-gray-6);
-  border-color: var(--attest-border-medium);
-  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  color: var(--sl-color-gray-2);
+  border: 1px solid var(--replay-border-strong);
+  border-radius: 6px;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .sl-link-button.minimal:hover {
-  color: var(--sl-color-accent);
-  border-color: var(--sl-color-accent);
-  transform: translateY(-1px);
+  color: var(--replay-play);
+  border-color: var(--replay-play);
+}
+
+/* Homepage demo recording */
+.demo-gif {
+  display: block;
+  width: 100%;
+  margin: 2rem auto;
+  border: 1px solid var(--replay-border);
+  border-radius: 10px;
 }
 
 /* ----------------------------------------------------------------
-   CUSTOM HERO SECTION (used in MDX content via .hero-section class)
+   VERDICT CHIPS — pass / fail / not_evaluated
+   Usable in MDX: <span class="verdict pass">pass</span>
    ---------------------------------------------------------------- */
-.hero-section {
-  position: relative;
-  text-align: center;
-  padding: 5rem 2rem;
-  border-radius: 1rem;
-  margin-bottom: var(--attest-section-gap);
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
-    var(--sl-color-gray-1);
+.verdict {
+  display: inline-block;
+  font-family: var(--sl-font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.4em 0.8em;
+  border-radius: 999px;
 }
 
-/* Dot grid texture */
-.hero-section::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 24px 24px;
-  pointer-events: none;
-}
+.verdict.pass { color: var(--replay-pass); background: rgba(68, 215, 168, 0.12); }
+.verdict.fail { color: var(--replay-rec); background: rgba(255, 92, 92, 0.12); }
+.verdict.skip { color: var(--sl-color-gray-3); background: rgba(154, 159, 168, 0.12); }
 
-.hero-section h1 {
-  font-size: 2.75rem;
-  font-weight: 700;
-  color: var(--sl-color-white);
-  margin-bottom: 1rem;
-  line-height: 1.2;
-  position: relative;
-  background: linear-gradient(135deg, #F0F5FA 30%, #2DD4BF 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.hero-section .subtitle {
-  font-size: 1.25rem;
-  color: var(--sl-color-gray-5);
-  max-width: 640px;
-  margin: 0 auto 2.5rem;
-  position: relative;
-}
-
-.hero-buttons {
-  display: flex;
+/* ----------------------------------------------------------------
+   STORY STRIP — rec → replay → gate (homepage)
+   ---------------------------------------------------------------- */
+.story-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
+  margin: 2.5rem 0;
+}
+
+@media (max-width: 56rem) {
+  .story-strip { grid-template-columns: 1fr; }
+}
+
+.story-step {
+  background: var(--replay-surface-1);
+  border: 1px solid var(--replay-border);
+  border-radius: 10px;
+  padding: 1.5rem 1.5rem 1.25rem;
   position: relative;
 }
 
-.hero-buttons a {
+.story-step .step-glyph {
+  font-family: var(--sl-font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  padding: 0.75rem 1.75rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.95rem;
-  text-decoration: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.hero-buttons .primary {
-  background: var(--sl-color-accent);
-  color: var(--sl-color-black);
-}
-
-.hero-buttons .primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 20px var(--attest-accent-glow);
-}
-
-.hero-buttons .secondary {
-  background: transparent;
-  border: 2px solid var(--attest-border-medium);
-  color: var(--sl-color-gray-6);
-}
-
-.hero-buttons .secondary:hover {
-  border-color: var(--sl-color-accent);
-  color: var(--sl-color-accent);
-  transform: translateY(-1px);
-}
-
-/* ----------------------------------------------------------------
-   FEATURE CARDS
-   ---------------------------------------------------------------- */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin: var(--attest-section-gap) 0;
-}
-
-.feature-card {
-  padding: 1.5rem;
-  border: 1px solid var(--attest-border-medium);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 0.75rem;
-  background: var(--sl-color-gray-1);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-
-.feature-card:hover {
-  border-color: var(--sl-color-accent);
-  background: var(--sl-color-gray-2);
-  box-shadow: 0 0 20px var(--attest-accent-glow);
-}
-
-.feature-card .icon {
-  font-size: 1.5rem;
+  gap: 0.5em;
   margin-bottom: 0.75rem;
 }
 
-.feature-card h3 {
+.story-step.rec .step-glyph { color: var(--replay-rec); }
+.story-step.play .step-glyph { color: var(--replay-play); }
+.story-step.gate .step-glyph { color: var(--replay-pass); }
+
+.story-step h3 {
   font-size: 1.05rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem;
 }
 
-.feature-card p {
-  font-size: 0.875rem;
-  color: var(--sl-color-gray-5);
+.story-step p {
+  font-size: 0.9rem;
+  color: var(--sl-color-gray-3);
   margin: 0;
+}
+
+.story-step code {
+  font-size: 0.8rem;
+}
+
+/* ----------------------------------------------------------------
+   FEATURE CARDS (Starlight <Card> in CardGrid)
+   ---------------------------------------------------------------- */
+.card-grid {
+  gap: 1rem;
+}
+
+.sl-markdown-content .card {
+  background: var(--replay-surface-1);
+  border: 1px solid var(--replay-border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.sl-markdown-content .card:hover {
+  border-color: var(--replay-border-strong);
+}
+
+.sl-markdown-content .card .title {
+  font-size: 1.02rem;
+}
+
+/* Single accent for all card icons — no rainbow */
+.sl-markdown-content .card .icon {
+  color: var(--replay-play);
+  background: rgba(76, 201, 240, 0.10);
+  border-radius: 8px;
+  padding: 0.2em;
+}
+
+.sl-markdown-content .card .body {
+  font-size: 0.9rem;
+  color: var(--sl-color-gray-3);
 }
 
 /* ----------------------------------------------------------------
@@ -425,97 +317,51 @@ site-search button > kbd {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin: var(--attest-section-gap) 0;
-  max-width: 700px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: var(--attest-section-gap) auto;
+  max-width: 760px;
 }
 
 .pipeline-layer {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+  padding: 0.8rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--replay-border);
   border-left: 3px solid;
-  background: var(--sl-color-gray-1);
-  transition: transform 0.15s ease, background 0.15s ease;
+  background: var(--replay-surface-2);
 }
 
-.pipeline-layer:hover {
-  transform: translateX(4px);
-}
+.pipeline-layer.tier-free { border-left-color: var(--attest-tier-free); }
+.pipeline-layer.tier-cheap { border-left-color: var(--attest-tier-cheap); }
+.pipeline-layer.tier-expensive { border-left-color: var(--attest-tier-expensive); }
 
-.pipeline-layer.tier-free {
-  border-color: var(--attest-tier-free);
-}
+.pipeline-layer:hover.tier-free { background: var(--attest-tier-free-bg); }
+.pipeline-layer:hover.tier-cheap { background: var(--attest-tier-cheap-bg); }
+.pipeline-layer:hover.tier-expensive { background: var(--attest-tier-expensive-bg); }
 
-.pipeline-layer.tier-free:hover {
-  background: var(--attest-tier-free-bg);
-}
-
-.pipeline-layer.tier-cheap {
-  border-color: var(--attest-tier-cheap);
-}
-
-.pipeline-layer.tier-cheap:hover {
-  background: var(--attest-tier-cheap-bg);
-}
-
-.pipeline-layer.tier-expensive {
-  border-color: var(--attest-tier-expensive);
-}
-
-.pipeline-layer.tier-expensive:hover {
-  background: var(--attest-tier-expensive-bg);
-}
-
-.pipeline-layer .layer-number {
-  font-weight: 700;
-  font-size: 0.75rem;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  flex-shrink: 0;
-  color: var(--sl-color-black);
-}
-
-.tier-free .layer-number {
-  background: var(--attest-tier-free);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
-}
-
-.tier-cheap .layer-number {
-  background: var(--attest-tier-cheap);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
-}
-
-.tier-expensive .layer-number {
-  background: var(--attest-tier-expensive);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
-}
-
-.pipeline-layer .layer-info {
-  flex: 1;
-}
-
-.pipeline-layer .layer-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--sl-color-gray-7);
-}
-
-.pipeline-layer .layer-desc {
+.layer-number {
+  font-family: var(--sl-font-mono);
   font-size: 0.8rem;
-  color: var(--sl-color-gray-5);
+  color: var(--sl-color-gray-4);
+  min-width: 1.4em;
 }
 
-.pipeline-layer .layer-cost {
-  font-size: 0.75rem;
+.layer-name {
   font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--sl-color-white);
+}
+
+.layer-desc {
+  font-size: 0.82rem;
+  color: var(--sl-color-gray-3);
+}
+
+.layer-cost {
+  margin-left: auto;
+  font-family: var(--sl-font-mono);
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 
@@ -524,222 +370,85 @@ site-search button > kbd {
    ---------------------------------------------------------------- */
 .comparison-table {
   width: 100%;
-  border-collapse: collapse;
-  margin: var(--attest-section-gap) 0;
-  font-size: 0.875rem;
-}
-
-.comparison-table th,
-.comparison-table td {
-  padding: 0.75rem 1rem;
-  text-align: center;
-  border-bottom: 1px solid var(--attest-border-subtle);
+  margin: 2rem 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--replay-border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: table;
 }
 
 .comparison-table th {
+  font-family: var(--sl-font-mono);
+  font-size: 0.8rem;
   font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--sl-color-gray-5);
-  border-bottom: 2px solid var(--attest-border-medium);
+  text-align: center;
+  background: var(--replay-surface-1);
+  color: var(--sl-color-gray-2);
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--replay-border-strong);
 }
 
-.comparison-table th:first-child,
-.comparison-table td:first-child {
+.comparison-table th:first-child {
   text-align: left;
 }
 
-.comparison-table tbody tr {
-  transition: background 0.15s ease;
+.comparison-table th:nth-child(2) {
+  color: var(--replay-play);
 }
 
-.comparison-table tbody tr:hover {
-  background: var(--sl-color-gray-2);
+.comparison-table td {
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  text-align: center;
+  border-bottom: 1px solid var(--replay-border);
 }
 
-.comparison-table tr.highlight {
-  background: var(--attest-accent-subtle);
-  font-weight: 600;
+.comparison-table tr:last-child td {
+  border-bottom: none;
 }
 
-.comparison-table tr.highlight:hover {
-  background: rgba(45, 212, 191, 0.10);
+.comparison-table td:first-child {
+  text-align: left;
+  color: var(--sl-color-gray-1);
 }
 
-.comparison-table .check {
-  color: var(--attest-tier-free);
-}
+.comparison-table td.check { color: var(--replay-pass); font-weight: 600; }
+.comparison-table td.cross { color: var(--sl-color-gray-4); }
 
-.comparison-table .cross {
-  color: var(--sl-color-gray-4);
-}
+.comparison-table td:nth-child(2).check { color: var(--replay-play); }
 
 /* ----------------------------------------------------------------
-   CODE TABS
+   MERMAID DIAGRAMS (build-time inline SVG)
    ---------------------------------------------------------------- */
-.code-tabs {
-  margin: 1.5rem 0;
-}
-
-.code-tabs .tab-bar {
-  display: flex;
-  gap: 0;
-  border-bottom: 2px solid var(--attest-border-medium);
-  background: var(--sl-color-gray-1);
-}
-
-.code-tabs .tab-button {
-  padding: 0.625rem 1rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.8rem;
-  color: var(--sl-color-gray-4);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.code-tabs .tab-button:hover {
-  color: var(--sl-color-gray-5);
-}
-
-.code-tabs .tab-button.active {
-  color: var(--sl-color-accent);
-  border-bottom-color: var(--sl-color-accent);
-}
-
-.code-tabs .tab-panel {
-  display: none;
-}
-
-.code-tabs .tab-panel.active {
+.sl-markdown-content svg[id^='mermaid'] {
   display: block;
+  margin: 1.5rem auto;
+  max-width: 100%;
+  height: auto;
 }
 
 /* ----------------------------------------------------------------
-   CODE BLOCKS (Expressive Code / Starlight)
-   Sunken depth: darker than page background.
-   EC defaults reference --sl-color-gray-N with Starlight's convention
-   (gray-6 = dark bg), but our palette inverts this. Override all EC vars.
+   CODE BLOCKS
    ---------------------------------------------------------------- */
-:root,
-:root[data-theme="dark"],
-:root:not([data-theme='dark']) .expressive-code[data-theme='dark'] {
-  /* Code area */
-  --ec-codeBg: #080C12;
-  --ec-codeFg: #D6DEEB;
-  --ec-codeSelBg: #1B3A4B;
-  --ec-codeFontFml: var(--sl-font-mono);
-
-  /* Borders */
-  --ec-brdCol: var(--attest-border-subtle);
-  --ec-brdRad: 0.5rem;
-
-  /* Gutter (line numbers) */
-  --ec-gtrFg: var(--sl-color-gray-4);
-  --ec-gtrBrdCol: rgba(75, 92, 111, 0.2);
-  --ec-gtrHlFg: var(--sl-color-gray-5);
-
-  /* UI (tabs, headers) */
-  --ec-uiFontFml: var(--sl-font);
-  --ec-uiSelBg: rgba(45, 212, 191, 0.15);
-  --ec-uiSelFg: var(--sl-color-white);
-  --ec-focusBrd: var(--sl-color-accent);
-
-  /* Scrollbar */
-  --ec-sbThumbCol: rgba(255, 255, 255, 0.08);
-  --ec-sbThumbHoverCol: rgba(255, 255, 255, 0.18);
-
-  /* Frame: editor tab style */
-  --ec-frm-edBg: #080C12;
-  --ec-frm-edActTabBg: #0C1017;
-  --ec-frm-edActTabFg: var(--sl-color-gray-6);
-  --ec-frm-edActTabBrdCol: transparent;
-  --ec-frm-edActTabIndTopCol: var(--sl-color-accent);
-  --ec-frm-edActTabIndBtmCol: transparent;
-  --ec-frm-edTabBarBg: #0C1017;
-  --ec-frm-edTabBarBrdCol: var(--attest-border-subtle);
-  --ec-frm-edTabBarBrdBtmCol: var(--attest-border-subtle);
-
-  /* Frame: terminal style */
-  --ec-frm-trmBg: #080C12;
-  --ec-frm-trmTtbBg: #0C1017;
-  --ec-frm-trmTtbFg: var(--sl-color-gray-5);
-  --ec-frm-trmTtbBrdBtmCol: var(--attest-border-subtle);
-  --ec-frm-trmTtbDotsFg: var(--sl-color-gray-4);
-
-  /* Inline buttons (copy) */
-  --ec-frm-inlBtnFg: var(--sl-color-gray-5);
-  --ec-frm-inlBtnBg: var(--sl-color-gray-5);
-  --ec-frm-inlBtnBrd: var(--sl-color-gray-4);
-
-  /* Text markers */
-  --ec-tm-markBg: rgba(255, 255, 255, 0.06);
-  --ec-tm-markBrdCol: rgba(255, 255, 255, 0.15);
-  --ec-tm-insBg: rgba(34, 197, 94, 0.15);
-  --ec-tm-insBrdCol: rgba(34, 197, 94, 0.4);
-  --ec-tm-insDiffIndCol: rgba(34, 197, 94, 0.7);
-  --ec-tm-delBg: rgba(239, 68, 68, 0.15);
-  --ec-tm-delBrdCol: rgba(239, 68, 68, 0.4);
-  --ec-tm-delDiffIndCol: rgba(239, 68, 68, 0.7);
-
-  /* Shadow */
-  --ec-frm-shdCol: transparent;
-  --ec-frm-frameBoxShdCssVal: none;
+.expressive-code .frame,
+figure.frame {
+  border-radius: 8px;
 }
 
 /* ----------------------------------------------------------------
-   STARLIGHT CONTENT AREA
-   Override markdown content headings and links.
+   PAGEFIND / SEARCH — minimal dark fixes on top of correct grays
    ---------------------------------------------------------------- */
-.sl-markdown-content h1,
-.sl-markdown-content h2,
-.sl-markdown-content h3,
-.sl-markdown-content h4 {
-  color: var(--sl-color-gray-7);
+site-search dialog {
+  background-color: var(--sl-color-bg-nav);
+  border: 1px solid var(--replay-border);
 }
 
-.sl-markdown-content a {
-  color: var(--sl-color-accent);
-}
-
-.sl-markdown-content a:hover {
-  color: var(--sl-color-accent-high);
-}
-
-/* Inline code in content */
-.sl-markdown-content :not(pre) > code {
-  background: var(--sl-color-gray-2);
-  border: 1px solid var(--attest-border-subtle);
-  color: var(--sl-color-accent-high);
-  border-radius: 0.25rem;
-  padding: 0.125em 0.375em;
-}
-
-/* ----------------------------------------------------------------
-   RESPONSIVE
-   ---------------------------------------------------------------- */
-@media (max-width: 640px) {
-  .hero-section h1 {
-    font-size: 1.75rem;
-  }
-
-  .hero-section .subtitle {
-    font-size: 1rem;
-  }
-
-  .hero-section {
-    padding: 3rem 1.25rem;
-  }
-
-  .feature-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .pipeline-layer {
-    flex-wrap: wrap;
-  }
+#starlight__search {
+  --pagefind-ui-primary: var(--replay-play);
+  --pagefind-ui-text: var(--sl-color-gray-2);
+  --pagefind-ui-background: var(--replay-surface-1);
+  --pagefind-ui-border: var(--replay-border);
+  --pagefind-ui-tag: var(--replay-surface-2);
 }
