@@ -3,7 +3,7 @@ title: "Policies"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/policies.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A policy is the file that decides whether a report lets a pull request merge. `attest policy evaluate` reads a report-v2 and a policy, prints the violations as JSON, and exits with the verdict:
 
@@ -45,6 +45,11 @@ failure_classes:
 # Needs --baseline: block assertions that passed in the baseline and do not now.
 block_on_regression: true
 
+# Needs --baseline: block baselined assertion ids missing from the report.
+# On by default when --baseline is given; list the ids whose removal is accepted.
+block_on_removal: true
+allow_removed: []
+
 # Needs --baseline and fixed-N trials: statistical comparison of pass rates.
 regression: { confidence: 0.95, tolerance: 0.05 }
 
@@ -57,7 +62,7 @@ Every field is optional. An empty policy has no rules to block on, but the `not_
 
 ## Not evaluated is not pass
 
-An assertion the engine could not judge (`provider_unavailable`, `provider_not_configured`, `simulation`, `missing_evidence`, `short_circuited`, `budget_exhausted`, `judge_abstained`, `replay_miss`) has status `not_evaluated` and a reason. It is never counted as a pass, and it is excluded from pass rates. The policy's `not_evaluated` severity decides what it costs: the default `warn` exits 2 so an outage or a missing key does not block merges; `not_evaluated: block` makes it exit 1.
+An assertion the engine could not judge (`provider_unavailable`, `provider_not_configured`, `simulation`, `missing_evidence`, `short_circuited`, `budget_exhausted`, `judge_abstained`, `judge_malformed`, `provider_auth`, `replay_miss`) has status `not_evaluated` and a reason. It is never counted as a pass, and it is excluded from pass rates. The policy's `not_evaluated` severity decides what it costs: the default `warn` exits 2 so an outage or a missing key does not block merges; `not_evaluated: block` makes it exit 1.
 
 A [replay miss](/sdk-guides/replay/#what-a-miss-says) is `not_evaluated` with reason `replay_miss` when the test could not go live, and a failed test when the replay is strict.
 
@@ -72,9 +77,13 @@ uv run attest policy evaluate --policy attest.policy.yaml --report attest-report
 
 A score below `score` is a violation named `min_mutation_score` with the rule's severity, so it exits 1 (`block`) or 2 (`warn`). A report with no score (no mutant could be scored) cannot meet a threshold and is also a violation. `score` must be between 0 and 1 and is required; a policy that sets the rule without `--mutation` is a load error (exit 3), so the gate cannot be skipped by forgetting the file. `--mutation` without the rule changes nothing.
 
+## Budget exceeded
+
+A run whose engine session passed `ATTEST_MAX_SOFT_FAILURES` still reports every assertion, hard failures included, and the report carries `budget_exceeded: true`. `attest policy evaluate` adds a `budget_exceeded` violation with the policy severity (default `block`), so a breach never hides a failure and never passes silently.
+
 ## Baselines
 
-`--baseline <tag>` adds the comparison described in [baselines](/sdk-guides/baselines/) and activates `block_on_regression` and `regression`. A policy that sets either rule without `--baseline` is a load error: `attest policy evaluate` exits 3 and names `--baseline` on stderr, so the gate cannot be skipped by forgetting the flag. `block_on_regression: false` needs no baseline. `--baseline` always computes the baseline delta, with or without either rule, and a tag with no pinned baseline exits 3 (`no baseline pinned with tag ...`).
+`--baseline <tag>` adds the comparison described in [baselines](/sdk-guides/baselines/) and activates `block_on_regression` and `regression`, and turns on `block_on_removal` (see [removed and changed assertions](/sdk-guides/baselines/#removed-and-changed-assertions)). A policy that sets either rule without `--baseline` is a load error: `attest policy evaluate` exits 3 and names `--baseline` on stderr, so the gate cannot be skipped by forgetting the flag. `block_on_regression: false` needs no baseline. `--baseline` always computes the baseline delta, with or without either rule, and a tag with no pinned baseline exits 3 (`no baseline pinned with tag ...`).
 
 ## Report completeness
 

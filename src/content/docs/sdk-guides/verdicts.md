@@ -3,7 +3,7 @@ title: "Verdicts: pass, fail, skip"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/verdicts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest reports one of four statuses for every assertion you request, and turns them into a test outcome only after the whole batch has run.
 
@@ -13,20 +13,22 @@ Attest reports one of four statuses for every assertion you request, and turns t
 | --- | --- |
 | `pass` | The assertion held. |
 | `soft_fail` | The assertion missed a `soft` threshold. |
-| `hard_fail` | The assertion failed. |
+| `hard_fail` | The assertion failed. A `threshold="dynamic"` score below its history bar is a `hard_fail` too ([dynamic thresholds](/sdk-guides/judges/#dynamic-thresholds)). |
 | `not_evaluated` | The engine produced no verdict. `reason` says why. |
 
 | Reason | When |
 | --- | --- |
-| `provider_unavailable` | The embedding or judge provider is configured but the call failed (outage, timeout, unusable response). |
+| `provider_unavailable` | The embedding or judge provider is configured but the call failed (outage, timeout, rate limit or server error that outlasted the retries). |
 | `provider_not_configured` | No embedding or judge provider is configured, for example no judge API key. |
 | `simulation` | `ATTEST_SIMULATION=1`: layers 1–4 run for real, layers 5–6 are not called. |
 | `missing_evidence` | The trace does not record the checked field, for example `metadata.cost_usd` unset. |
 | `short_circuited` | A layer 5–6 assertion did not run because a layer 1–4 assertion in the same batch hard-failed. |
 | `budget_exhausted` | An embedding or judge call could not reserve its cost or call count against the session budget (`ATTEST_MAX_JUDGE_CALLS`, `ATTEST_BUDGET_USD`) or the test's budget, so it was not sent. |
 | `judge_abstained` | The judge answered `{"abstain": true, "reason": ...}`: the output lacks the evidence the rubric needs. The reason is in the explanation. |
+| `judge_malformed` | The judge answered, but not with a `score` between 0 and 1 or an explicit abstain: no JSON object, no `score`, a non-numeric or out-of-range score such as `7`, or a reply that contains the output delimiter. The judge measured nothing, so no score is recorded. |
+| `provider_auth` | The provider rejected the credentials (HTTP 401 or 403). Reported after one call, without retries. |
 
-A `not_evaluated` assertion is never a pass and never a `broken_code` failure.
+A `not_evaluated` assertion is never a pass and never a `broken_code` failure. A `hard_fail` or `soft_fail` row can carry a `failure_class`; `spec_error` marks an assertion whose spec cannot be evaluated (unknown rubric, `repeat` outside 1–16, unknown bias probe, missing `target`, `threshold` outside (0, 1]): the test is wrong, not the agent. It is a failure class only, never a `reason`.
 
 ## Test outcome
 

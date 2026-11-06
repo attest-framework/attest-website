@@ -3,7 +3,7 @@ title: "From first test to merge gate"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/merge-gate.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 This guide takes a project from no tests to a GitHub Actions job that blocks merges on agent regressions. No API key, model or network access is needed: the sample test checks a recorded agent run with deterministic assertions (layers 1–4).
 
@@ -74,7 +74,9 @@ uv run attest policy evaluate --report attest-report.json --policy attest.policy
 | 0 | Every rule passed |
 | 1 | A blocking rule failed — the generated policy blocks on any hard failure |
 | 2 | Warnings only — the generated policy warns when assertions were not evaluated (`not_evaluated: warn`) |
-| 3 | The policy could not be evaluated: a load error, a rule without its input (`block_on_regression` or `regression` without `--baseline`, `min_mutation_score` without `--mutation`), or a report with 0 tests while `tests_collected` is above 0 |
+| 3 | The policy could not be evaluated: a load error, a rule without its input (`block_on_regression` or `regression` without `--baseline`, `min_mutation_score` without `--mutation`), a report with 0 tests while `tests_collected` is above 0, or a baseline pinned under id scheme 1 (`baseline uses id scheme 1; re-pin it on 1.1`) |
+
+With `--baseline <tag>` the gate also blocks when a baselined assertion is missing from the report (`block_on_removal`, allowlist with `allow_removed`) and when the run exceeded the soft-fail budget (`budget_exceeded`). See [baselines](/sdk-guides/baselines/#removed-and-changed-assertions).
 
 ## 5. Gate merges in GitHub Actions
 

@@ -3,7 +3,7 @@ title: "World fixtures: assert on what the agent did to the system it acts on"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/world-fixtures.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/world-fixtures.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/world-fixtures.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A trace records what an agent said and which tools it called. It cannot tell whether the refund API ended up with one refund or two. A *world* is a local, stateful HTTP stand-in for that system. The agent's real HTTP client talks to it, the world keeps the records the agent created, and an `effect` assertion checks the final state.
 
