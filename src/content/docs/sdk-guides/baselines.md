@@ -3,7 +3,7 @@ title: "Baselines"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/baselines.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.0.1 (5d5b748b13da7ba034b3acfce631cee8fcae720c) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/baselines.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A baseline is a pinned report-v2: the status, score, cost and duration of every assertion at a point you trust, stored under a tag. `attest policy evaluate --baseline <tag>` compares a new report with it, so a policy can block a change that makes assertions that used to pass fail, or lowers a pass rate measured over fixed-N trials. See [policies](/sdk-guides/policies/) for the rules that act on the comparison.
 
@@ -39,7 +39,24 @@ uv run attest policy evaluate --policy attest.policy.yaml --report attest-report
 
 The evaluation names a tag that does not exist as an error (exit 3), not as a pass. A policy that sets `block_on_regression: true` or a `regression` rule needs `--baseline`; without it `attest policy evaluate` exits 3 and names the missing flag. `block_on_regression: false` needs nothing.
 
-`attest policy evaluate` prints its violations as JSON; the comparison reaches the output only through the policy rules. `block_on_regression: true` adds a `block_on_regression` violation naming each assertion that passed in the baseline and does not now (an assertion that was added or removed is not a regression), and a `regression` rule adds a verdict per assertion.
+`attest policy evaluate` prints its violations as JSON; the comparison reaches the output only through the policy rules. `block_on_regression: true` adds a `block_on_regression` violation naming each assertion that passed in the baseline and does not now (an assertion that was added or removed is not a regression; removal has its own rule below), and a `regression` rule adds a verdict per assertion.
+
+## Removed and changed assertions
+
+A baselined assertion id that is missing from the report is a regression: deleting the assertions that protect a behavior must not turn the gate green. With `--baseline`, `attest policy evaluate` adds a `block_on_removal` violation (exit 1) naming each missing id, unless the policy lists it under `allow_removed`:
+
+```yaml
+block_on_removal: true        # default when --baseline is given; false turns the rule off
+allow_removed: [3f9a1c0e5b7d2a44]   # ids whose removal is accepted
+```
+
+Reordering assertions keeps every id, so it passes. An id is a hash of the test (or `ContinuousEvalRunner` name), the assertion type, the canonical spec and the occurrence index among identical assertions in that test, so editing a spec produces a new id. When the same test still holds an assertion of the same type with a different spec, the missing id is reported as `changed` instead of removed: the policy output lists it under `changed` (`assertion_id`, `new_assertion_id`) and it does not block. Re-pin the baseline to accept the edit.
+
+## Id scheme
+
+Reports and baselines carry `id_scheme: 2`. A baseline pinned before 1.1 uses scheme 1 (ordinal ids); `attest policy evaluate --baseline` refuses to compare against it and exits 3 with `baseline uses id scheme 1; re-pin it on 1.1`, rather than reporting every assertion as removed. The check applies to the head report too: a report without `id_scheme: 2` (written by an SDK older than 1.1) exits 3 with `report uses id scheme 1; re-run with an SDK on 1.1`. Re-pin the tag from a 1.1 report. Rolling back to 1.0 orphans baselines pinned on 1.1.
+
+The same ids key the result history behind `threshold="dynamic"` and drift alerts. History written before 1.1 under ordinal ids matches no assertion, so each baseline restarts at the 10-run cold start ([continuous eval](/sdk-guides/continuous-eval/#upgrading)).
 
 ## Trials and the regression rule
 
