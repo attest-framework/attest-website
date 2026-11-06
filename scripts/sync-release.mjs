@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Copy attest's single-source docs (CHANGELOG.md, docs/guides/*.md) at a
 // release tag into the website. Usage:
-//   node scripts/sync-release.mjs <attest-checkout-dir> <tag> <commit-sha>
-// Owns src/synced/CHANGELOG.md and src/content/docs/sdk-guides/ outright:
-// both are replaced on every run, so no website-native page is touched.
+//   node scripts/sync-release.mjs <attest-checkout-dir> <tag> <commit-sha> <attest-engine-binary>
+// Owns src/synced/CHANGELOG.md, src/content/docs/sdk-guides/, src/data/capabilities.json
+// and scripts/fixtures/capabilities.schema.json outright: all are replaced on every
+// run, so no website-native page is touched. capabilities.json is the output of
+// `<attest-engine-binary> capabilities --json`, built from the release commit by
+// the workflow, validated against the schema at proto/attest/v1/cli/capabilities.schema.json
+// in the same commit, and required to report the release tag as its engine_version.
 //
 // Synced files must stay `.md`, never `.mdx`: MDX compiles `{expressions}`,
 // `import` and `export` into JavaScript that runs at build time, so an `.mdx`
@@ -12,12 +16,15 @@ import { execFileSync } from "node:child_process";
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateCapabilities } from "./capabilities.mjs";
 import { markdownParser, rewriteGuideLinks } from "./guide-links.mjs";
 
 const TAG_PATTERN = /^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const GUIDE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*\.md$/;
 const ALLOWED_URL_SCHEMES = new Set(["http", "https", "mailto"]);
+// Region markers attest's generator writes around generated tables; inert comments.
+const CLAIMS_MARKER_PATTERN = /^<!-- claims:[a-z0-9-]+:(start|end) -->$/;
 const URL_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
 const ATTEST_EDIT_BASE = "https://github.com/attest-framework/attest/edit/main/docs/guides";
 const ATTEST_BLOB_BASE = "https://github.com/attest-framework/attest/blob";
@@ -25,6 +32,9 @@ const ATTEST_BLOB_BASE = "https://github.com/attest-framework/attest/blob";
 const websiteRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const changelogTarget = join(websiteRoot, "src/synced/CHANGELOG.md");
 const guidesTarget = join(websiteRoot, "src/content/docs/sdk-guides");
+const capabilitiesTarget = join(websiteRoot, "src/data/capabilities.json");
+const capabilitiesSchemaTarget = join(websiteRoot, "scripts/fixtures/capabilities.schema.json");
+const CAPABILITIES_SCHEMA_PATH = "proto/attest/v1/cli/capabilities.schema.json";
 
 function fail(message) {
   console.error(`sync-release: ${message}`);
@@ -67,7 +77,7 @@ function assertSafeMarkdown(markdown, label) {
   const problems = [];
   const visit = (node) => {
     const line = node.position?.start.line ?? "?";
-    if (node.type === "html") {
+    if (node.type === "html" && !CLAIMS_MARKER_PATTERN.test(node.value.trim())) {
       problems.push(`line ${line}: raw HTML is not allowed (${JSON.stringify(node.value.slice(0, 60))})`);
     }
     if (typeof node.url === "string") {
@@ -89,9 +99,16 @@ function provenance(sourcePath, tag, sha) {
   );
 }
 
-const [sourceDir, tag, sha] = process.argv.slice(2);
-if (sourceDir === undefined || tag === undefined || sha === undefined) {
-  fail("usage: node scripts/sync-release.mjs <attest-checkout-dir> <tag> <commit-sha>");
+const [sourceDir, tag, sha, engineBinary] = process.argv.slice(2);
+if (
+  sourceDir === undefined ||
+  tag === undefined ||
+  sha === undefined ||
+  engineBinary === undefined
+) {
+  fail(
+    "usage: node scripts/sync-release.mjs <attest-checkout-dir> <tag> <commit-sha> <attest-engine-binary>",
+  );
 }
 if (!TAG_PATTERN.test(tag)) fail(`invalid tag ${JSON.stringify(tag)}`);
 if (!SHA_PATTERN.test(sha)) fail(`invalid commit sha ${JSON.stringify(sha)}`);
@@ -134,6 +151,31 @@ const changelog = splitTitle(
   "CHANGELOG.md",
 );
 assertSafeMarkdown(changelog.body, "CHANGELOG.md");
+
+const capabilitiesSchemaText = readRegularFile(
+  join(sourceDir, CAPABILITIES_SCHEMA_PATH),
+  CAPABILITIES_SCHEMA_PATH,
+);
+let capabilitiesText;
+try {
+  capabilitiesText = execFileSync(engineBinary, ["capabilities", "--json"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+} catch (error) {
+  fail(`${engineBinary} capabilities --json failed: ${error.message}`);
+}
+const capabilities = JSON.parse(capabilitiesText);
+const capabilitiesProblems = validateCapabilities(
+  capabilities,
+  JSON.parse(capabilitiesSchemaText),
+);
+if (capabilitiesProblems.length > 0) {
+  fail(`capabilities --json:\n  ${capabilitiesProblems.join("\n  ")}`);
+}
+if (`v${capabilities.engine_version}` !== tag) {
+  fail(`capabilities engine_version ${capabilities.engine_version} does not match ${tag}`);
+}
 
 const guidesSource = join(sourceDir, "docs/guides");
 if (!lstatSync(guidesSource, { throwIfNoEntry: false })?.isDirectory()) {
@@ -199,6 +241,12 @@ const guideOutputs = guides.map((entry) => {
     content: `${frontmatter}\n${provenance(sourcePath, tag, sha)}\n${body}`,
   };
 });
+
+mkdirSync(dirname(capabilitiesTarget), { recursive: true });
+writeFileSync(capabilitiesTarget, `${JSON.stringify(capabilities, null, 2)}\n`);
+console.log(`wrote ${capabilitiesTarget}`);
+writeFileSync(capabilitiesSchemaTarget, capabilitiesSchemaText);
+console.log(`wrote ${capabilitiesSchemaTarget}`);
 
 mkdirSync(dirname(changelogTarget), { recursive: true });
 writeFileSync(changelogTarget, `${provenance("CHANGELOG.md", tag, sha)}\n${changelogBody}`);
