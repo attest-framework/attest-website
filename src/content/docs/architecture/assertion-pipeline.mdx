@@ -1,9 +1,15 @@
 ---
-title: "8-Layer Assertion Pipeline"
-description: "Deep dive into Attest's 8-layer assertion pipeline — from free schema validation to LLM-as-judge scoring."
+title: "Assertion Pipeline"
+description: "Deep dive into Attest's assertion pipeline — six evaluated layers plus plugins, from free schema validation to LLM-as-judge scoring."
 ---
 
-The assertion pipeline is the core evaluation engine in Attest. It processes assertions through eight layers ordered by cost, evaluating the cheapest deterministic checks first and only escalating to expensive probabilistic evaluation when necessary.
+import LayerTable from '@components/LayerTable.astro';
+
+The assertion pipeline is the core evaluation engine in Attest. It processes assertions through six evaluated layers plus plugins, ordered by cost, evaluating the cheapest deterministic checks first and only escalating to expensive probabilistic evaluation when necessary.
+
+## Layers
+
+<LayerTable />
 
 ## Pipeline Overview
 
@@ -14,25 +20,21 @@ flowchart TD
     subgraph FREE["Free & Deterministic"]
         L1["Layer 1: Schema<br/>JSON Schema validation"]
         L2["Layer 2: Constraint<br/>Value ranges, bounds"]
-        L3["Layer 3: Trace<br/>Step ordering, tool calls"]
+        L3["Layer 3: Trace and behavior<br/>Tool order, arguments, agent trees, world state"]
         L4["Layer 4: Content<br/>Regex, keywords, patterns"]
     end
 
     subgraph PAID["Paid & Probabilistic"]
-        L5["Layer 5: Embedding<br/>Semantic similarity<br/>≪$0.001/call"]
-        L6["Layer 6: LLM Judge<br/>Natural language eval<br/>~$0.001/call"]
+        L5["Layer 5: Embedding<br/>Semantic similarity<br/>Cost depends on the provider"]
+        L6["Layer 6: LLM Judge<br/>Natural language eval<br/>Cost depends on the provider"]
     end
 
-    subgraph STRUCTURAL["Free & Structural"]
-        L7["Layer 7: Trace Tree<br/>Multi-agent chains"]
+    subgraph CUSTOM["Plugins"]
+        PLUGIN["Plugin<br/>User-defined logic, run in the SDK process"]
     end
 
-    subgraph CUSTOM["Custom"]
-        L8["Layer 8: Plugin<br/>User-defined logic"]
-    end
-
-    L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8
-    L8 --> RESULT["Results: pass / soft_fail / hard_fail"]
+    L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> PLUGIN
+    PLUGIN --> RESULT["Results: pass / soft_fail / hard_fail"]
 ```
 
 ## Evaluation Order
@@ -45,11 +47,11 @@ flowchart LR
     B --> C{Any hard fail?}
     C -->|"Yes + fail_fast"| D["Skip L5/L6<br/>Return results"]
     C -->|"No"| E["Phase 2: L5/L6<br/>(parallel, 100ms-3s each)"]
-    E --> F["Phase 3: L7/L8<br/>Return all results"]
+    E --> F["Phase 3: plugins<br/>Return all results"]
 ```
 
 :::tip
-In a well-engineered agent, 60-70% of the testable surface is covered by free Layers 1-4. Design tests to maximize deterministic coverage before reaching for embedding similarity or LLM judges.
+The free deterministic Layers 1-4 cover the schema, constraint, trace and content checks. Design tests to maximize deterministic coverage before reaching for embedding similarity or LLM judges.
 :::
 
 ## Layer 1: Schema Validation
@@ -280,7 +282,7 @@ Configuration:
 LLM judges are non-deterministic. The same input can produce different scores across runs. Run judge assertions several times and compare scores to measure reliability, and mark them `soft=True` so a single low score does not block a run.
 :::
 
-## Layer 7: Trace Tree
+## Trace Tree Assertions (Layer 3)
 
 **Cost:** Free | **Speed:** &lt;5ms | **Deterministic:** Yes
 
@@ -314,7 +316,7 @@ assert analyst_trace is not None
 
 Trace tree assertions operate on the nested `sub_trace` fields within `agent_call` steps. The engine traverses the tree to locate agents, compute depth, and verify structural properties.
 
-## Layer 8: Plugin
+## Plugins
 
 **Cost:** Varies | **Speed:** Varies | **Deterministic:** Varies
 
@@ -377,9 +379,9 @@ The tier system maps assertion layers to cost categories for test scheduling:
 
 | Tier | Layers | Cost per Assertion | Typical Use |
 |---|---|---|---|
-| **TIER_1** | L1, L2, L3, L4, L7 | Free | Development, every commit |
-| **TIER_2** | L5 | ~$0.001 | PR validation |
-| **TIER_3** | L6 | ~$0.01+ | Pre-merge, nightly |
+| **TIER_1** | L1, L2, L3, L4 | Free | Development, every commit |
+| **TIER_2** | L5 | Depends on the embedding provider | PR validation |
+| **TIER_3** | L6 | Depends on the judge provider | Pre-merge, nightly |
 
 ```python
 from attest import TIER_1, expect, tier

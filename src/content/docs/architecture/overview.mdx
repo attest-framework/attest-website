@@ -39,7 +39,7 @@ flowchart TB
         direction TB
         INIT["initialize"]
         EVAL["evaluate_batch"]
-        PIPE["8-Layer Assertion Pipeline"]
+        PIPE["Assertion Pipeline"]
         SHUT["shutdown"]
         INIT --> EVAL --> PIPE --> SHUT
     end
@@ -48,12 +48,11 @@ flowchart TB
         direction LR
         L1["L1 Schema"]
         L2["L2 Constraint"]
-        L3["L3 Trace"]
+        L3["L3 Trace and behavior"]
         L4["L4 Content"]
         L5["L5 Embedding"]
         L6["L6 Judge"]
-        L7["L7 Trace Tree"]
-        L8["L8 Plugin"]
+        PLUG["Plugins"]
     end
 
     Adapters --> SDKs
@@ -78,9 +77,9 @@ expect(result).tools_called_in_order(["check_eligibility", "process_refund"])
 
 ### 2. Cheapest Valid Assertion First
 
-The 8-layer pipeline is ordered by cost. Layers 1-4 are free and deterministic. Layer 5 costs ~$0.001. Layer 6 costs ~$0.01+. The API is designed so developers naturally reach for cheaper layers first.
+The pipeline is ordered by cost. Layers 1-4 are free and deterministic. Layers 5 and 6 depend on the embedding and judge provider; a local ONNX embedding model and a local judge endpoint cost nothing. The API is designed so developers naturally reach for cheaper layers first.
 
-In a well-engineered agent, **60-70% of the testable surface is deterministic** — tool call schemas, guardrail enforcement, structured output validation, state machine transitions, cost budgets. LLM-as-judge is the last resort, not the default.
+Much of an agent's testable surface is deterministic — tool call schemas, guardrail enforcement, structured output validation, state machine transitions, cost budgets. LLM-as-judge is the last resort, not the default.
 
 ### 3. Soft Failures Are First-Class
 
@@ -154,7 +153,7 @@ Binary discovery chain:
 
 ### Assertion Pipeline
 
-Eight layers evaluated in order, cheapest first. Layers 1-4 and 7 are free and deterministic. Layer 5 uses embeddings (~$0.001/call). Layer 6 uses an LLM judge (~$0.01+/call). Layer 8 runs custom plugin logic.
+Six layers evaluated in order, cheapest first, plus plugins. Layers 1-4 are free and deterministic. Layer 5 uses embeddings and layer 6 an LLM judge; their cost depends on the provider. Plugins run custom logic in the SDK process. The generated layer table is on the [overview](/overview/).
 
 See [Assertion Pipeline](/architecture/assertion-pipeline/) for the full deep dive.
 
@@ -234,7 +233,7 @@ Tests are tagged with tiers that map to assertion cost:
 
 | Tier | Layers | Cost | Use Case |
 |---|---|---|---|
-| `TIER_1` | L1-L4, L7 | Free | Schema, constraint, trace, content, trace tree |
+| `TIER_1` | L1-L4 | Free | Schema, constraint, trace and behavior, content |
 | `TIER_2` | L5 | ~$0.001/assertion | Embedding similarity |
 | `TIER_3` | L6 | ~$0.01+/assertion | LLM-as-judge scoring |
 

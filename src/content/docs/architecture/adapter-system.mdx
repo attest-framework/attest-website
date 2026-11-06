@@ -41,7 +41,7 @@ flowchart TB
     LI --> CT
     MAN --> CT
     OTEL --> CT
-    CT --> ENGINE["Attest Engine<br/>8-Layer Pipeline"]
+    CT --> ENGINE["Attest Engine<br/>Assertion Pipeline"]
 ```
 
 The two tiers solve fundamentally different capture problems:
@@ -292,7 +292,7 @@ Framework adapters populate temporal fields that provider adapters do not:
 | `agent_id` | Not populated | From framework agent metadata |
 | `agent_role` | Not populated | From framework agent description |
 
-These fields enable Layer 3 temporal assertions (`agent_ordered_before`, `agents_overlap`, `ordered_agents`) and Layer 7 trace tree analysis.
+These fields enable Layer 3 temporal assertions (`agent_ordered_before`, `agents_overlap`, `ordered_agents`) and trace tree analysis.
 
 ## Special Adapters
 

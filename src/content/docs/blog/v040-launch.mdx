@@ -3,6 +3,10 @@ title: "Attest: Test Your AI Agents Like You Test Your Code"
 description: "Introducing Attest v0.4.0 — an open-source testing framework for AI agents with an 8-layer assertion pipeline."
 ---
 
+:::note[Historical release note]
+Published 2026-02-22 for v0.4.0. Layer numbering, adapter counts and comparisons below describe v0.4.0, not the current release. For the current layers and adapters see the [overview](/overview/).
+:::
+
 AI agents are going to production without real testing.
 
 57% of organizations now run agents in production. Yet most evaluation relies on LLM-as-judge — a probabilistic system evaluating a probabilistic system. The result: eval suites that cost 10x more than the agent itself, produce non-deterministic results, and still miss the failures that matter most — wrong tool calls, budget overruns, broken output schemas, violated state machines.
@@ -13,7 +17,7 @@ Today we're open-sourcing **Attest**, a testing framework for AI agents that app
 
 ## The Core Idea: Graduated Assertions
 
-60-70% of an agent's testable surface is fully deterministic. Tool call schemas, execution order, cost budgets, content presence/absence, structured output format, state transitions. Routing all of this through an LLM judge is a category error — expensive, slow, and unnecessarily non-deterministic.
+Much of an agent's testable surface is deterministic. Tool call schemas, execution order, cost budgets, content presence/absence, structured output format, state transitions. Routing all of this through an LLM judge is a category error — expensive, slow, and unnecessarily non-deterministic.
 
 Attest implements an 8-layer assertion pipeline that exhausts deterministic checks before touching probabilistic ones:
 
@@ -28,7 +32,7 @@ Attest implements an 8-layer assertion pipeline that exhausts deterministic chec
 | 7. Simulation          | Persona-driven users, mock tools, fault injection            | Free (mocked) | Variable |
 | 8. Multi-Agent         | Delegation chains, cross-agent assertions, aggregate metrics | Free          | ~5ms     |
 
-Layers 1-4 cover the deterministic 70% at zero cost. Layer 5 runs semantic similarity locally with ONNX — no API key, no network call. Layer 6, the expensive LLM judge, is reserved for the genuinely subjective remainder. Layers 7-8 add simulation and multi-agent testing that no other open-source tool provides.
+Layers 1-4 cover the deterministic checks at zero cost. Layer 5 runs semantic similarity locally with ONNX — no API key, no network call. Layer 6, the expensive LLM judge, is reserved for the genuinely subjective remainder. Layers 7-8 add simulation and multi-agent testing that no other open-source tool provides.
 
 ## What It Looks Like
 
@@ -231,7 +235,7 @@ Plugins implement the `AttestPlugin` protocol — define a `name`, `plugin_type`
 
 **vs. Promptfoo** — Config-driven prompt evaluation. Attest is code-first agent testing with full trace-level assertions, simulation, and multi-agent support.
 
-No other open-source tool combines deterministic assertion layers, local embeddings, simulation with fault injection, and multi-agent trace testing in a single framework. Attest is Apache 2.0 with zero infrastructure requirements — no platform to host, no vendor lock-in, no BSL license gotchas.
+Attest is Apache 2.0 with zero infrastructure requirements — no platform to host, no vendor lock-in, no BSL license gotchas.
 
 ## Get Started
 

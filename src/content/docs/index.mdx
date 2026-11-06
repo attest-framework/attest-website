@@ -23,6 +23,7 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 import PipelineDiagram from '@components/PipelineDiagram.astro';
+import AdapterTable from '@components/AdapterTable.astro';
 import ComparisonTable from '@components/ComparisonTable.astro';
 
 ## rec → replay → gate
@@ -61,9 +62,9 @@ attestExpect(trace).toolCardinality("issue_refund", { per: "order_id", atMost: 1
 
 One line of behavior contract states the rule INC-1042 broke — over the trace's tool calls, not the reply text.
 
-## The 8-layer assertion pipeline
+## Six evaluated layers plus plugins
 
-The replay and gate run on deterministic checks. The pipeline is the full ladder of checks a contract or test can use, from free and instant to LLM-judged.
+The replay and gate run on deterministic checks. The layers are the full ladder of checks a contract or test can use, from free and instant to LLM-judged. Plugins add your own assertions. The table is generated from `attest-engine capabilities --json`.
 
 <PipelineDiagram />
 
@@ -85,10 +86,10 @@ def test_weather_agent(attest):
 
     chain = (
         expect(result)
-        .required_tools(["get_weather"])                          # Layer 3: Free
-        .output_contains("Tokyo")                                 # Layer 4: Free
-        .output_similar_to("Current weather conditions in Tokyo")  # Layer 5: ≪$0.001
-        .passes_judge("Provides accurate, helpful weather information")  # Layer 6: ~$0.001
+        .required_tools(["get_weather"])                          # L3, free
+        .output_contains("Tokyo")                                 # L4, free
+        .output_similar_to("Current weather conditions in Tokyo")  # L5, cost depends on the embedding provider
+        .passes_judge("Provides accurate, helpful weather information")  # L6, cost depends on the judge provider
     )
     attest.evaluate(chain)
 ```
@@ -121,8 +122,8 @@ test('weather agent returns weather data', async () => {
 ## Features
 
 <CardGrid>
-  <Card title="11 Framework Adapters" icon="puzzle">
-    OpenAI, Anthropic, Gemini, Ollama, LangChain, LlamaIndex, CrewAI, Google ADK, OpenTelemetry - plug in your stack.
+  <Card title="Framework Adapters" icon="puzzle">
+    Provider and framework adapters for Python and TypeScript, each with a maturity tier - the table below lists them.
   </Card>
   <Card title="Multi-Agent Testing" icon="seti:git">
     Trace delegation chains across agents. Assert on parent-child relationships, temporal ordering, and cross-agent data flow.
@@ -134,6 +135,8 @@ test('weather agent returns weather data', async () => {
     Run assertions on production traces. Sample, evaluate, and alert on drift - Slack, webhooks, custom dispatchers.
   </Card>
 </CardGrid>
+
+<AdapterTable />
 
 ## How it compares
 

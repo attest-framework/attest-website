@@ -10,7 +10,7 @@ Move from DeepEval to Attest for more powerful, composable agent testing.
 DeepEval focuses on metric evaluation. Attest provides:
 
 - **Composable assertions** — Chain validations fluently
-- **8-layer stack** — From schema to simulation
+- **Six evaluated layers plus plugins** — From schema to LLM judge
 - **Trace inspection** — See exactly what your agent did
 - **Multi-agent testing** — Built-in simulation runtime
 - **Framework adapters** — LangChain, CrewAI, LlamaIndex, more
@@ -23,7 +23,7 @@ DeepEval focuses on metric evaluation. Attest provides:
 | `evaluate()` | `expect()` + `attest.evaluate()` | Build a chain, then evaluate it with the `attest` fixture |
 | `Faithfulness` | `passes_judge()` | LLM evaluation |
 | `AnswerRelevancy` | `output_similar_to()` | Embedding-based |
-| `RAGAS` | 8-layer stack | Comprehensive validation |
+| `RAGAS` | Assertion layers | Comprehensive validation |
 | `DeepEvalConfig` | `config` module | Global configuration |
 
 ## Step-by-Step Migration
@@ -97,7 +97,7 @@ def test_agent_answers(attest, test_case):
 
 ### 3. Migrate RAGAS Evaluation
 
-DeepEval's RAGAS metrics map to Attest's 8-layer stack:
+DeepEval's RAGAS metrics map to Attest's assertion layers:
 
 #### DeepEval (RAGAS)
 
@@ -117,7 +117,7 @@ result = metric.measure(
 )
 ```
 
-#### Attest (8 Layers)
+#### Attest
 
 ```python
 from attest import expect
@@ -139,7 +139,7 @@ def test_rag_answer(attest):
         .output_similar_to("expected answer")
         # Layer 6: Judge
         .passes_judge("Is this harmful?")
-        # Layer 7: Trace Tree
+        # Trace tree assertions (layer 3)
         .delegation_depth(3)
     )
     attest.evaluate(chain)
@@ -344,7 +344,7 @@ Yes, but we recommend migrating completely for consistency. You can gradually mi
 
 **What about RAGAS?**
 
-RAGAS concepts map to Attest's 8-layer stack. Use `passes_judge()` with custom prompts instead of RAGAS metrics.
+RAGAS concepts map to Attest's assertion layers. Use `passes_judge()` with custom prompts instead of RAGAS metrics.
 
 **How do I test retrieval quality?**
 
