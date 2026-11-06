@@ -74,7 +74,7 @@ export default defineConfig({
     starlight({
       title: "Attest Framework",
       description:
-        "Test your AI agents like you test your code. 8-layer assertion pipeline, 11 framework adapters, multi-agent support.",
+        "Test your AI agents like you test your code. Six evaluated assertion layers plus plugins, Python and TypeScript SDKs, multi-agent support.",
       social: [
         {
           icon: "github",

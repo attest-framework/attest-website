@@ -1,9 +1,9 @@
 ---
 title: "Python Expect DSL"
-description: "Fluent assertion API for testing AI agent outputs across 8 validation layers."
+description: "Fluent assertion API for testing AI agent outputs across six evaluated layers plus plugins."
 ---
 
-Fluent assertion API for testing AI agent outputs across 8 validation layers.
+Fluent assertion API for testing AI agent outputs across six evaluated layers plus plugins.
 
 ## Overview
 
@@ -58,7 +58,7 @@ Every assertion method except `output_forbids` accepts `soft=True` (keyword-only
 
 ## Assertion Layers
 
-Attest assertions work across 8 layers:
+Attest assertions work across six evaluated layers plus plugins. Trace tree assertions are part of layer 3:
 
 | Layer | Methods | What it validates |
 |-------|---------|------------------|
@@ -68,8 +68,8 @@ Attest assertions work across 8 layers:
 | **4. Content** | `output_contains()`, `output_not_contains()`, `output_matches_regex()`, `output_has_all_keywords()`, `output_has_any_keyword()`, `output_forbids()`, `content_contains()` | Text content |
 | **5. Embedding** | `output_similar_to()` | Semantic meaning |
 | **6. LLM Judge** | `passes_judge()` | Domain-specific evaluation |
-| **7. Trace Tree** | `agent_called()`, `delegation_depth()`, `agent_output_contains()`, `cross_agent_data_flow()`, `follows_transitions()`, `aggregate_cost_under()`, `aggregate_tokens_under()`, `agent_ordered_before()`, `agents_overlap()`, `agent_wall_time_under()`, `ordered_agents()` | Multi-agent execution structure |
-| **8. Plugin** | `plugin()`, `aggregate_latency_under()`, `all_tools_called()` | Custom plugin evaluations |
+| **Trace tree (layer 3)** | `agent_called()`, `delegation_depth()`, `agent_output_contains()`, `cross_agent_data_flow()`, `follows_transitions()`, `aggregate_cost_under()`, `aggregate_tokens_under()`, `agent_ordered_before()`, `agents_overlap()`, `agent_wall_time_under()`, `ordered_agents()` | Multi-agent execution structure |
+| **Plugin** | `plugin()`, `aggregate_latency_under()`, `all_tools_called()` | Custom plugin evaluations |
 
 ## Layer 1: Schema Validation
 
@@ -309,7 +309,7 @@ expect(result).passes_judge("is polite", threshold="bad")  # ValueError
 
 See the [Drift Detection guide](/guides/drift-detection/). `AttestClient.query_drift(assertion_id, window_size=50, static_threshold=None)` returns a `DriftReport` for a specific assertion; the window is fixed at 50 and `window_size` is ignored by the engine. `static_threshold` is the floor of the bar; when omitted the engine uses `0.8`.
 
-## Layer 7: Trace Tree Validation
+## Trace Tree Validation (Layer 3)
 
 Validate the structure of a multi-agent execution trace.
 
@@ -395,7 +395,7 @@ Use LLM evaluation for semantic correctness:
 
 Capture traces from popular frameworks with the adapters. See the [Python Adapters Reference](/reference/python/adapters/) for the adapter classes and usage.
 
-## Layer 8: Plugin Assertions
+## Plugin Assertions
 
 *Added in v0.5.1*
 

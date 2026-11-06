@@ -1,0 +1,38 @@
+---
+/**
+ * Adapter table (maturity per SDK) rendered from src/data/capabilities.json
+ * (`attest-engine capabilities --json`, refreshed by scripts/sync-release.mjs).
+ */
+import { capabilities } from './capabilities';
+
+const sdks = Object.keys(capabilities.adapters) as (keyof typeof capabilities.adapters)[];
+const sdkLabels: Record<string, string> = { python: 'Python', typescript: 'TypeScript' };
+const adaptersBySdk = new Map(
+  sdks.map((sdk) => [sdk, new Map(capabilities.adapters[sdk].map((a) => [a.module, a]))]),
+);
+const modules = [...new Set(sdks.flatMap((sdk) => capabilities.adapters[sdk].map((a) => a.module)))];
+const displayName = (module: string): string =>
+  sdks.map((sdk) => adaptersBySdk.get(sdk)?.get(module)?.name).find((n) => n !== undefined) ?? module;
+const definitions = Object.entries(capabilities.maturity_definitions);
+---
+
+<table>
+  <thead>
+    <tr>
+      <th>Adapter</th>
+      {sdks.map((sdk) => <th>{sdkLabels[sdk] ?? sdk}</th>)}
+    </tr>
+  </thead>
+  <tbody>
+    {modules.map((module) => (
+      <tr>
+        <td>{displayName(module)}</td>
+        {sdks.map((sdk) => <td>{adaptersBySdk.get(sdk)?.get(module)?.maturity ?? 'Not available'}</td>)}
+      </tr>
+    ))}
+  </tbody>
+</table>
+<ul>
+  {definitions.map(([tier, text]) => <li><strong>{tier}</strong>: {text}</li>)}
+</ul>
+<p><small>From <code>attest-engine capabilities --json</code> at engine {capabilities.engine_version}.</small></p>

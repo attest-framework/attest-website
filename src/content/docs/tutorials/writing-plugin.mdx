@@ -1,9 +1,9 @@
 ---
 title: "Writing a Plugin"
-description: "Create custom evaluation logic for Layer 8 of the Attest assertion pipeline."
+description: "Create custom evaluation logic for Attest plugin assertions."
 ---
 
-Layer 8 of the assertion pipeline allows custom evaluation logic via plugins. Plugins run outside the engine and submit results through the `submit_plugin_result` method. This tutorial walks through creating, registering, and testing a custom plugin.
+Plugin assertions add custom evaluation logic. Plugins run outside the engine and submit results through the `submit_plugin_result` method. This tutorial walks through creating, registering, and testing a custom plugin.
 
 ## How Plugins Work
 
@@ -12,7 +12,7 @@ Layer 8 of the assertion pipeline allows custom evaluation logic via plugins. Pl
 │   SDK   │ ──────────────────► │  Engine   │
 └─────────┘                    └─────┬────┘
      ▲                               │
-     │      submit_plugin_result     │ Layer 8 assertion
+     │      submit_plugin_result     │ plugin assertion
      │ ◄─────────────────────────────┘ delegated to plugin
      │
 ┌────┴──────┐
@@ -140,7 +140,7 @@ def test_agent_not_toxic(attest):
     agent_result = attest.evaluate(chain)
     assert agent_result.passed
 
-    # Plugin assertion (layer 8) — run separately
+    # Plugin assertion (plugin) — run separately
     # In a full integration, this would be triggered by the engine
     # when it encounters a plugin-type assertion
 ```
@@ -183,10 +183,10 @@ async def setup_with_plugin():
 
 async def evaluate_with_plugin(runner, client, trace):
     """Evaluate trace with both engine assertions and custom plugin."""
-    # Engine handles layers 1-7
+    # Engine handles layers 1-6
     await runner.submit(trace)
 
-    # Plugin handles layer 8 — run independently
+    # Plugin handles plugin assertions — run independently
     status, score, explanation = check_toxicity(trace)
     if status != "pass":
         # Dispatch alert manually or submit to engine

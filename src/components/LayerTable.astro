@@ -1,0 +1,31 @@
+---
+/**
+ * Layer table rendered from src/data/capabilities.json
+ * (`attest-engine capabilities --json`, refreshed by scripts/sync-release.mjs).
+ */
+import { capabilities, costLabels, isPlugin } from './capabilities';
+---
+
+<table>
+  <thead>
+    <tr>
+      <th>Layer</th>
+      <th>Assertion types</th>
+      <th>What it checks</th>
+      <th>Cost</th>
+      <th>Deterministic</th>
+    </tr>
+  </thead>
+  <tbody>
+    {capabilities.layers.map((layer) => (
+      <tr>
+        <td>{isPlugin(layer) ? layer.name : `L${layer.id} ${layer.name}`}</td>
+        <td>{layer.assertion_types.map((type, i) => <>{i > 0 && ', '}<code>{type}</code></>)}</td>
+        <td>{layer.description}</td>
+        <td>{costLabels[layer.cost]}</td>
+        <td>{layer.deterministic ? 'Yes' : 'No'}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+<p><small>From <code>attest-engine capabilities --json</code> at engine {capabilities.engine_version}.</small></p>
