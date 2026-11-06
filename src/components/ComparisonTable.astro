@@ -1,49 +1,96 @@
 ---
 /**
- * Feature comparison table — Attest vs competing frameworks.
+ * Comparison of Attest with other tools. Attest cells come from
+ * src/data/capabilities.json. Every other cell states only what the cited
+ * primary page says; anything the page does not say is "Not assessed".
  * Styles in src/styles/custom.css under .comparison-table.
  */
+import { capabilities } from './capabilities';
 
-interface Feature {
-  name: string;
-  attest: boolean;
-  deepeval: boolean;
-  promptfoo: boolean;
-  ragas: boolean;
-  langwatch: boolean;
+const NA = 'Not assessed';
+const { python, typescript } = capabilities.adapters;
+
+interface Source {
+  tool: string;
+  url: string;
+  accessed: string;
 }
 
-const features: Feature[] = [
-  { name: 'Deterministic assertions', attest: true, deepeval: false, promptfoo: true, ragas: false, langwatch: false },
-  { name: 'Graduated cost layers', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
-  { name: 'LLM-as-judge', attest: true, deepeval: true, promptfoo: true, ragas: true, langwatch: true },
-  { name: 'Multi-agent traces', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
-  { name: 'Simulation mode', attest: true, deepeval: false, promptfoo: false, ragas: false, langwatch: false },
-  { name: 'Framework adapters (5+)', attest: true, deepeval: false, promptfoo: false, ragas: true, langwatch: true },
-  { name: 'Code-first (not config)', attest: true, deepeval: true, promptfoo: false, ragas: true, langwatch: false },
-  { name: 'Python + TypeScript SDKs', attest: true, deepeval: false, promptfoo: true, ragas: false, langwatch: false },
+const sources: Source[] = [
+  { tool: 'DeepEval', url: 'https://deepeval.com/docs/getting-started', accessed: '2026-11-06' },
+  { tool: 'Promptfoo', url: 'https://www.promptfoo.dev/docs/intro/', accessed: '2026-11-06' },
+  { tool: 'Ragas', url: 'https://docs.ragas.io/en/stable/', accessed: '2026-11-06' },
+  { tool: 'LangWatch', url: 'https://langwatch.ai/docs/introduction', accessed: '2026-11-06' },
+  { tool: 'LangSmith', url: 'https://docs.langchain.com/langsmith/observability.md', accessed: '2026-11-06' },
 ];
 
-const tools = ['Attest', 'DeepEval', 'PromptFoo', 'Ragas', 'LangWatch'] as const;
+const tools = ['Attest', ...sources.map((s) => s.tool)];
+
+// Column order: Attest, DeepEval, Promptfoo, Ragas, LangWatch, LangSmith.
+const rows: { name: string; cells: string[] }[] = [
+  {
+    name: 'SDK languages',
+    cells: [
+      capabilities.sdk_languages.map((l) => (l === 'typescript' ? 'TypeScript' : 'Python')).join(' and '),
+      'Python (pytest) and TypeScript (Vitest)',
+      'CLI and library; "Use Python, Javascript, or any other language"',
+      NA,
+      'Python and TypeScript',
+      NA,
+    ],
+  },
+  {
+    name: 'Framework and provider integrations named on the page',
+    cells: [
+      `${python.length} Python and ${typescript.length} TypeScript adapters`,
+      '11 for Python and 6 for TypeScript, including LangChain, OpenAI, Anthropic, LlamaIndex, CrewAI, Google ADK',
+      NA,
+      'LangChain, LlamaIndex, "and more"',
+      NA,
+      'OpenAI, Anthropic, CrewAI, Vercel AI SDK, Pydantic AI',
+    ],
+  },
+  {
+    name: 'Runs inside the unit-test runner',
+    cells: ['pytest and Vitest', 'pytest and Vitest', NA, NA, NA, NA],
+  },
+  {
+    name: 'LLM-as-judge',
+    cells: ['Yes (layer 6)', 'Yes (GEval)', NA, NA, NA, NA],
+  },
+  {
+    name: 'Deterministic assertions and per-layer cost classes',
+    cells: ['Yes (layers 1-4 free; layers 5-6 depend on the provider)', NA, NA, NA, NA, NA],
+  },
+  {
+    name: 'Multi-agent traces and simulation',
+    cells: ['Yes (beta)', NA, NA, NA, NA, NA],
+  },
+];
 ---
 
 <table class="comparison-table">
   <thead>
     <tr>
-      <th>Feature</th>
+      <th>Capability</th>
       {tools.map((tool) => <th>{tool}</th>)}
     </tr>
   </thead>
   <tbody>
-    {features.map((feature, i) => (
-      <tr class={i === features.length - 1 ? 'highlight' : ''}>
-        <td>{feature.name}</td>
-        <td class={feature.attest ? 'check' : 'cross'}>{feature.attest ? '\u2713' : '\u2717'}</td>
-        <td class={feature.deepeval ? 'check' : 'cross'}>{feature.deepeval ? '\u2713' : '\u2717'}</td>
-        <td class={feature.promptfoo ? 'check' : 'cross'}>{feature.promptfoo ? '\u2713' : '\u2717'}</td>
-        <td class={feature.ragas ? 'check' : 'cross'}>{feature.ragas ? '\u2713' : '\u2717'}</td>
-        <td class={feature.langwatch ? 'check' : 'cross'}>{feature.langwatch ? '\u2713' : '\u2717'}</td>
+    {rows.map((row) => (
+      <tr>
+        <td>{row.name}</td>
+        {row.cells.map((cell) => <td class={cell === NA ? 'na' : ''}>{cell}</td>)}
       </tr>
     ))}
   </tbody>
 </table>
+
+<p>
+  "Not assessed" means the cited page does not say. Primary sources, accessed on the date shown:
+</p>
+<ul>
+  {sources.map((s) => (
+    <li>{s.tool}: <a href={s.url}>{s.url}</a> (accessed {s.accessed})</li>
+  ))}
+</ul>

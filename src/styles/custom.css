@@ -399,8 +399,8 @@ header.header {
 }
 
 .comparison-table td {
-  padding: 0.65rem 1rem;
-  font-size: 0.9rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
   text-align: center;
   border-bottom: 1px solid var(--replay-border);
 }
@@ -414,10 +414,7 @@ header.header {
   color: var(--sl-color-gray-1);
 }
 
-.comparison-table td.check { color: var(--replay-pass); font-weight: 600; }
-.comparison-table td.cross { color: var(--sl-color-gray-4); }
-
-.comparison-table td:nth-child(2).check { color: var(--replay-play); }
+.comparison-table td.na { color: var(--sl-color-gray-4); }
 
 /* ----------------------------------------------------------------
    MERMAID DIAGRAMS (build-time inline SVG)
