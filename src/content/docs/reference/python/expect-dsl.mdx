@@ -307,7 +307,7 @@ Only `"dynamic"` and floats (`0.0`–`1.0`) are accepted. Other string values ra
 expect(result).passes_judge("is polite", threshold="bad")  # ValueError
 ```
 
-See the [Drift Detection guide](/guides/drift-detection/). `AttestClient.query_drift(assertion_id, window_size=50)` returns a `DriftReport` for a specific assertion; the window is fixed at 50 and `window_size` is ignored by the engine. The Python client sends no `static_threshold`, so the engine uses `0.8`.
+See the [Drift Detection guide](/guides/drift-detection/). `AttestClient.query_drift(assertion_id, window_size=50, static_threshold=None)` returns a `DriftReport` for a specific assertion; the window is fixed at 50 and `window_size` is ignored by the engine. `static_threshold` is the floor of the bar; when omitted the engine uses `0.8`.
 
 ## Layer 7: Trace Tree Validation
 

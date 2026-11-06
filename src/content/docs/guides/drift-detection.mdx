@@ -38,7 +38,7 @@ score < max(static_threshold, mean − 2·max(σ, 0.02))
 
 A baseline is active only with at least 10 passing or soft-failing runs. Before that, `query_drift` reports `ok` and no drift is flagged; a hard failure is judged by the static threshold alone. Evaluations that are `not_evaluated`, including simulation runs, are not recorded and never move a baseline.
 
-History lives under `ATTEST_CACHE_DIR`. A CI job that starts with an empty cache is always in the cold start, so `"dynamic"` behaves as the static `0.8` there until the directory is restored between runs.
+History lives under `ATTEST_CACHE_DIR`. A CI job that starts with an empty cache starts cold, so `"dynamic"` behaves as the static `0.8` until ten eligible results exist. Those can accumulate within the same job, and the baseline activates once they do. Restoring the directory between runs only avoids rebuilding the history.
 
 ## Dynamic thresholds
 
