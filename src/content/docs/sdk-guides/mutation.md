@@ -3,7 +3,7 @@ title: "Mutation testing"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/mutation.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/mutation.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/mutation.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A suite that stays green when the agent's behavior breaks is not protecting anything. `attest mutate` measures that: it builds behavior mutants from your captured fixtures, runs your contracts against each one at no model cost, and reports a mutation score, the mutants nobody noticed, and a contract that would notice each.
 
@@ -68,7 +68,7 @@ survivors:
     (issue_refund is called at most 1× per order_id)
 ```
 
-`--json` prints [`cli/mutate.schema.json`](https://github.com/attest-framework/attest/blob/v1.1.0-rc.2/proto/attest/v1/cli/mutate.schema.json): `score`, `seed`, `fixtures`, `mutants` (`id`, `fixture`, `operator`, `description`, `status`, `killed_by` with the assertion id, test id and spec), `survivors_suggestions`, `skipped_specs` and `applicable_specs`.
+`--json` prints [`cli/mutate.schema.json`](https://github.com/attest-framework/attest/blob/v1.1.0-rc.3/proto/attest/v1/cli/mutate.schema.json): `score`, `seed`, `fixtures`, `mutants` (`id`, `fixture`, `operator`, `description`, `status`, `killed_by` with the assertion id, test id and spec), `survivors_suggestions`, `skipped_specs` and `applicable_specs`.
 
 Each suggested contract was checked before it was reported: it passes on the unmutated fixture and hard-fails on the survivor. An effect suggestion leaves out the world snapshot; the test supplies it through the world helper. A survivor the operator table cannot express has no suggestion.
 

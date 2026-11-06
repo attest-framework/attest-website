@@ -3,7 +3,7 @@ title: "MCP server"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/mcp.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/mcp.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/mcp.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest mcp` gives a coding agent (Claude Code, Cursor, Codex) six tools over the Model Context Protocol on stdio. The agent drafts behavior contracts from a captured run, iterates them against it, reads failures and gets the test lines to paste. The server is read-only and offline: it writes no files, opens no sockets and makes no model calls.
 

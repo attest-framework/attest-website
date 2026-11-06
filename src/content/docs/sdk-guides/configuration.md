@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Since 1.1.0 that includes `ATTEST_EVAL_CONCURRENCY`, `ATTEST_EMBEDDING_CACHE_MAX_MB`, `ATTEST_JUDGE_CACHE_MAX_MB`, `ATTEST_HISTORY_MAX_ROWS`, `ATTEST_HISTORY_MAX_AGE_DAYS` and `ATTEST_JUDGE_TIMEOUT_S`: a value that is not a positive integer makes the engine and `attest-engine doctor` exit 1, naming every offending variable. `ATTEST_JUDGE_META_EVAL` keeps its historical behavior: it is enabled only by the exact value `true`.
 
@@ -137,6 +137,15 @@ Under pytest-xdist each worker is a separate pytest process with its own engine 
 | `ATTEST_HISTORY_MAX_AGE_DAYS` | Result history age limit in days (enables pruning). | `30` when pruning is enabled |
 
 The history is what `threshold="dynamic"` and the [continuous eval runner](/sdk-guides/continuous-eval/) read: one row per evaluated assertion id, with `not_evaluated` rows left out. Rows recorded before 1.1 are keyed by ordinal ids and match no assertion, so each assertion rebuilds its baseline (10 passing or soft runs) after the upgrade.
+
+## Egress guard and proxies
+
+| Variable | Purpose |
+|---|---|
+| `ATTEST_EGRESS` | `block` fails connections from the test process to known model-provider hosts; `allow` and unset leave them alone; any other value is an error. Equivalent to `pytest --attest-egress=block` and `useReplay(name, { egress: "block" })`. |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` (either case) | With the guard on, requests a client sends to the named HTTP proxy are screened: a `CONNECT` target or absolute-form request that names a provider host is blocked. `NO_PROXY` is not read. |
+
+The guard is a best-effort check for trusted test code, not an isolation boundary: child processes, SOCKS proxies and `https://` proxy connections are not inspected, and after an allowed `CONNECT` it does not check what the tunnel carries. The provider host list and the full limits are in [replay](/sdk-guides/replay/#block-direct-provider-connections).
 
 ## Removed variables
 
