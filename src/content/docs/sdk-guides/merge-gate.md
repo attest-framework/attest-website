@@ -3,7 +3,7 @@ title: "From first test to merge gate"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/merge-gate.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 This guide takes a project from no tests to a GitHub Actions job that blocks merges on agent regressions. No API key, model or network access is needed: the sample test checks a recorded agent run with deterministic assertions (layers 1–4).
 
@@ -52,7 +52,23 @@ Attest diagnostic — 1 of 4 assertions failed:
 | Runner | Command |
 |---|---|
 | pytest | `uv run pytest --attest-report=attest-report.json` |
-| Vitest | `npx vitest run --reporter=default --reporter=@attest-ai/vitest/reporter --outputFile.attest=attest-report.json`, or `reporters: ["default", new AttestReporter({ outputFile: "attest-report.json" })]` in the Vitest config |
+| Vitest | `npx vitest run --reporter=default --reporter=@attest-ai/vitest/reporter --outputFile.attest=attest-report.json`, or `reporters: ["default", new AttestReporter({ outputFile: "attest-report.json" })]` in the Vitest config (import `AttestReporter` from `@attest-ai/vitest/reporter`) |
+
+The Vitest config runs in the main process: import from the `@attest-ai/vitest/reporter` and `@attest-ai/vitest/setup` subpaths there, never from the package root. The root also exports the test helpers, which need the Vitest test runtime, and importing it from `vitest.config.ts` fails on Vitest 3. The two subpaths load on Vitest 3 and 4 (the peer range is `>=3.0.0 <5`). `globalSetup: ["@attest-ai/vitest/setup"]` resolves the engine, downloading it once, before the first test, so the download neither slows nor times out a test.
+
+```ts
+import AttestReporter from "@attest-ai/vitest/reporter";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globalSetup: ["@attest-ai/vitest/setup"],
+    reporters: ["default", new AttestReporter({ outputFile: "attest-report.json" })],
+  },
+});
+```
+
+The reporter collects the cost per test and writes it to the report-v2 file (`total_cost`, `summary.usage`) and prints the `attest usage:` line when the run made or refused an Attest model call; `AttestCostReporter` no longer exists, so remove it from the `reporters` list.
 
 The report follows `proto/attest/v1/report-v2.schema.json`:
 

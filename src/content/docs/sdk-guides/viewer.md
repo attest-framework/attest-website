@@ -3,7 +3,7 @@ title: "Failure viewer"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/viewer.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/viewer.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/viewer.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest view` turns report-v2 files into one HTML page you open in a browser: the test list, the trace tree with the failing span highlighted, expected versus actual, replay or live provenance, cost, a baseline-versus-head diff and the mutants that survived. It is a local file, not a server. The page has no JavaScript, makes no network request and loads nothing from outside itself.
 
@@ -31,7 +31,7 @@ attest view <report.json...> [--baseline <report.json>...] [--mutation <mutate.j
 
 Exit 0: the page was written. Exit 2: usage error, an unreadable or invalid input, or the page could not be written. The file is written through a temporary file and renamed, with mode 0644.
 
-A screenshot of the page for the INC-1042 duplicate-refund regression, with the second `issue_refund` span highlighted and the baseline diff, is at [images/failure-viewer.png](https://github.com/attest-framework/attest/blob/v1.1.0-rc.1/docs/guides/images/failure-viewer.png); the baseline section is at [images/failure-viewer-baseline.png](https://github.com/attest-framework/attest/blob/v1.1.0-rc.1/docs/guides/images/failure-viewer-baseline.png).
+A screenshot of the page for the INC-1042 duplicate-refund regression, with the second `issue_refund` span highlighted and the baseline diff, is at [images/failure-viewer.png](https://github.com/attest-framework/attest/blob/v1.1.0-rc.2/docs/guides/images/failure-viewer.png); the baseline section is at [images/failure-viewer-baseline.png](https://github.com/attest-framework/attest/blob/v1.1.0-rc.2/docs/guides/images/failure-viewer-baseline.png).
 
 ## What the page shows
 

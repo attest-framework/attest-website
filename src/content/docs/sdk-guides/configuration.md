@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Since 1.1.0 that includes `ATTEST_EVAL_CONCURRENCY`, `ATTEST_EMBEDDING_CACHE_MAX_MB`, `ATTEST_JUDGE_CACHE_MAX_MB`, `ATTEST_HISTORY_MAX_ROWS`, `ATTEST_HISTORY_MAX_AGE_DAYS` and `ATTEST_JUDGE_TIMEOUT_S`: a value that is not a positive integer makes the engine and `attest-engine doctor` exit 1, naming every offending variable. `ATTEST_JUDGE_META_EVAL` keeps its historical behavior: it is enabled only by the exact value `true`.
 
@@ -28,6 +28,7 @@ Each published `attest-ai` wheel and sdist and the `@attest-ai/core` tarball car
 - The connect phase times out after 10 seconds and the whole download, redirects included, after 120 seconds.
 - A source checkout or editable install has no table and never downloads. It fails naming `ATTEST_ENGINE_PATH`; build an engine with `make engine` and point `ATTEST_ENGINE_PATH` at `./bin/attest-engine`.
 - `ATTEST_ENGINE_PATH` and the exact-version pin are unchanged.
+- When the download fails, for example offline or behind a proxy that blocks it, the pytest plugin ends the run with one error line that names `ATTEST_ENGINE_PATH`, without a traceback. The download notice itself is printed with pytest's output capture off, so it shows even without `-s`. The Vitest global setup resolves the engine once before the tests, so an engine that cannot be found fails the run before the first test.
 
 Every release binary also carries a GitHub build-provenance attestation, created by the `attest-engine` job of the release workflow. To check a binary you downloaded yourself, pin the workflow and the tag, not just the repository:
 
