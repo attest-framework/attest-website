@@ -3,7 +3,7 @@ title: "Annotations and the summary comment"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/annotations.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/annotations.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/annotations.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `pr-annotate` turns report-v2 files into what a reviewer sees on a pull request: one summary comment, plus an annotation on the file and line of each failing test. `attest init --ci github` wires it into the workflow ([merge gate guide](/sdk-guides/merge-gate/)). To use it directly:
 

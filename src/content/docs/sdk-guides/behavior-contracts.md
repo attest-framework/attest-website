@@ -3,7 +3,7 @@ title: "Behavior contracts"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/behavior-contracts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/behavior-contracts.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/behavior-contracts.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A behavior contract states what the agent did, not what it said: how often a tool ran per business key, which tools it must never call, the shape and order of its tool calls, whether it looped, how many tool failures it hit in a row, and what arguments it passed. Contracts are Layer 3 trace checks. They run in the engine, deterministically, with no model calls, so they cost nothing and give the same answer on every run.
 

@@ -3,7 +3,7 @@ title: "Test selection"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/selection.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/selection.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/selection.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest select` lists the tests a change needs to run, so a pull request that touches one fixture does not run the whole suite. It reads the git diff and decides from file names alone: no model, no test execution, the same answer for the same diff.
 

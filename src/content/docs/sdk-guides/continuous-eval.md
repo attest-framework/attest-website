@@ -3,7 +3,7 @@ title: "Continuous eval and drift alerts"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/continuous-eval.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/continuous-eval.md at v1.1.0-rc.1 (cfadc2827a833521f166f8f519002d35c4b4a9a7) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/continuous-eval.md at v1.1.0-rc.2 (a43c58af957bb50ae85b46abe4d2d081d625b4fb) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `ContinuousEvalRunner` evaluates live traces against a fixed set of assertions in the background and posts an alert to a webhook or Slack when an assertion hard-fails or its score drops below its own history. The runner is in `attest-ai` (Python) and `@attest-ai/core` (TypeScript). Both send the same alert.
 
