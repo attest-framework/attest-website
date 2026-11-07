@@ -25,6 +25,9 @@ const GUIDE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*\.md$/;
 const ALLOWED_URL_SCHEMES = new Set(["http", "https", "mailto"]);
 // Region markers attest's generator writes around generated tables; inert comments.
 const CLAIMS_MARKER_PATTERN = /^<!-- claims:[a-z0-9-]+:(start|end) -->$/;
+// Match run_doc_snippets.py's single-line directive comments, not other HTML.
+// Never consume a second comment or markup following a closed marker.
+const SNIPPET_MARKER_PATTERN = /^[^\S\r\n]*<!--[^\S\r\n]*snippet:[^\S\r\n]*(?:(?!-->|<!--)[^\r\n])*?-->[^\S\r\n]*$/;
 const URL_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
 const ATTEST_EDIT_BASE = "https://github.com/attest-framework/attest/edit/main/docs/guides";
 const ATTEST_BLOB_BASE = "https://github.com/attest-framework/attest/blob";
@@ -41,10 +44,35 @@ function fail(message) {
   process.exit(1);
 }
 
+function stripSnippetMarkers(markdown) {
+  const removals = [];
+  const visit = (node) => {
+    // Only HTML nodes: fenced examples and inline code must remain literal.
+    if (node.type === "html") {
+      let offset = node.position.start.offset;
+      for (const line of node.value.split("\n")) {
+        const start = markdown.lastIndexOf("\n", offset - 1) + 1;
+        const newline = markdown.indexOf("\n", offset);
+        const end = newline === -1 ? markdown.length : newline;
+        if (SNIPPET_MARKER_PATTERN.test(markdown.slice(start, end))) {
+          removals.push({ start, end });
+        }
+        offset += line.length + 1;
+      }
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(markdownParser.parse(markdown));
+  for (const { start, end } of removals.reverse()) {
+    markdown = markdown.slice(0, start) + markdown.slice(end);
+  }
+  return markdown;
+}
+
 // The first non-blank line must be the H1; it becomes the page title and is
 // removed from the body because Starlight renders the title itself.
 function splitTitle(markdown, label) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const lines = stripSnippetMarkers(markdown.replace(/\r\n/g, "\n")).split("\n");
   const index = lines.findIndex((line) => line.trim() !== "");
   if (index === -1 || !lines[index].startsWith("# ")) {
     fail(`${label}: first non-blank line must be an H1 ("# Title")`);
