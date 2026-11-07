@@ -3,7 +3,7 @@ title: "TypeScript parity"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/parity.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/parity.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/parity.md at v1.1.0-rc.5 (18aeebeacf9bde5270ba7228b5290c8999b29c90) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Every capability the Python SDK exposes has a TypeScript counterpart, or a documented exception. This page is generated from the public surface of both SDKs by the parity test (`sdks/python/tests/test_parity.py`); do not edit it by hand. Regenerate it with `ATTEST_UPDATE_PARITY=1` after changing either SDK's surface.
 
@@ -120,6 +120,7 @@ Exceptions use one of three reasons: `upstream_python_only` (the framework has n
 | `cost_under` | `costUnder` | match | - |
 | `cross_agent_data_flow` | `crossAgentDataFlow` | match | - |
 | `delegation_depth` | `delegationDepth` | match | - |
+| `evaluated` | `evaluated` | match | - |
 | `follows_transitions` | `followsTransitions` | match | - |
 | `forbidden_tools` | `forbiddenTools` | match | - |
 | `latency_under` | `latencyUnder` | match | - |
