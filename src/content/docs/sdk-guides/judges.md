@@ -3,7 +3,7 @@ title: "Judges"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/judges.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/judges.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/judges.md at v1.1.0-rc.5 (18aeebeacf9bde5270ba7228b5290c8999b29c90) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Layer 6 (`llm_judge`) asks a model to score agent output against a rubric. The engine runs the judge itself, so the provider is chosen with environment variables and every SDK gets the same behavior. Deterministic layers (1–4, 7) never call a judge; prefer them, and use a judge for what only a model can check.
 

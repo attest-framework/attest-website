@@ -3,7 +3,7 @@ title: "Agent skills: let coding agents operate Attest"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/agents.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/agents.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/agents.md at v1.1.0-rc.5 (18aeebeacf9bde5270ba7228b5290c8999b29c90) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest ships agent skills, in the Agent Skills format (a directory with a `SKILL.md` that has `name` and `description` frontmatter), that teach a coding agent such as Claude Code, Codex or Cursor to write contracts, capture incidents, debug failures, set up the merge gate and migrate eval suites. The skills are embedded in `attest-engine`, so they match the installed version and need no network. They hold procedures only: the reference material stays in these guides, which the agent reads with `attest guide <topic>`.
 

@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.5 (18aeebeacf9bde5270ba7228b5290c8999b29c90) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Since 1.1.0 that includes `ATTEST_EVAL_CONCURRENCY`, `ATTEST_EMBEDDING_CACHE_MAX_MB`, `ATTEST_JUDGE_CACHE_MAX_MB`, `ATTEST_HISTORY_MAX_ROWS`, `ATTEST_HISTORY_MAX_AGE_DAYS` and `ATTEST_JUDGE_TIMEOUT_S`: a value that is not a positive integer makes the engine and `attest-engine doctor` exit 1, naming every offending variable. `ATTEST_JUDGE_META_EVAL` keeps its historical behavior: it is enabled only by the exact value `true`.
 
