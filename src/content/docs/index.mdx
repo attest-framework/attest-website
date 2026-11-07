@@ -77,9 +77,16 @@ from attest import agent, expect
 
 @agent("weather-agent")
 def weather_agent(builder, query: str) -> dict:
-    # Your agent implementation: record tool calls on the builder
-    builder.add_tool_call("get_weather", args={"city": "Tokyo"})
-    ...
+    # Recorded sample data: no model or weather API is called.
+    builder.add_tool_call(
+        "get_weather",
+        args={"city": "Tokyo"},
+        result={"temperature_c": 22, "conditions": "Sunny"},
+    )
+    return {
+        "message": "Current weather conditions in Tokyo: sunny, 22°C.",
+        "structured": {"city": "Tokyo", "temperature_c": 22},
+    }
 
 def test_weather_agent(attest):
     result = weather_agent(query="What's the weather in Tokyo?")
@@ -88,11 +95,22 @@ def test_weather_agent(attest):
         expect(result)
         .required_tools(["get_weather"])                          # L3, free
         .output_contains("Tokyo")                                 # L4, free
-        .output_similar_to("Current weather conditions in Tokyo")  # L5, cost depends on the embedding provider
-        .passes_judge("Provides accurate, helpful weather information")  # L6, cost depends on the judge provider
+        .output_matches_schema({                                 # L1, free
+            "type": "object",
+            "required": ["city", "temperature_c"],
+            "properties": {
+                "city": {"type": "string"},
+                "temperature_c": {"type": "number"},
+            },
+        })
     )
     attest.evaluate(chain)
 ```
+Save this as `test_weather_agent.py`, install `attest-ai==1.1.0rc5` and `pytest`
+with `uv add`, then run `uv run pytest -v`. Every assertion above is deterministic
+and requires no API key. For semantic checks, add `output_similar_to` or
+`passes_judge` after configuring the corresponding embedding or judge provider.
+
 
 ### TypeScript
 
