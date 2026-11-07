@@ -3,13 +3,14 @@ title: "Trace check: integrity and coverage of an OTLP export"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/trace-check.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/trace-check.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest trace check` reads an OpenTelemetry trace export (OTLP/JSON, the `ExportTraceServiceRequest` shape that the OTLP file exporter and collectors write) and reports whether its structure can be trusted and which evidence it lacks. `attest trace convert` turns the same export into an Attest trace (schema version 2) that assertions run against.
 
 Both commands run in `attest-engine`; `uv run attest trace …` and `npx attest trace …` forward to the engine of the installed SDK version.
 
 ## Check an export
+
 
 ```bash
 uv run attest trace check incidents/INC-1042/trace.py.otlp.json
@@ -69,6 +70,7 @@ Coverage counts spans that lack evidence some assertions need:
 An assertion whose evidence is absent does not fail: it reports `not_evaluated` with reason `missing_evidence`. For example `cost_under(0.05)` on a trace converted from an export without `gen_ai.usage.cost` reports `not_evaluated: missing_evidence (metadata.cost_usd absent)`. Message content is opt-in in most GenAI instrumentations (for OpenTelemetry Python, `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`).
 
 ## Convert an export
+
 
 ```bash
 uv run attest trace convert trace.otlp.json > trace.json

@@ -3,7 +3,7 @@ title: "Simulation Runtime Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/simulation.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/simulation.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/simulation.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest's simulation runtime enables testing AI agents under controlled conditions with simulated users, mocked tools, fault injection, and multi-turn orchestration. All simulation primitives are decorators that compose with Attest's assertion pipeline.
 
@@ -23,6 +23,7 @@ And three built-in personas for simulating different user behaviors.
 ## `@scenario` Decorator
 
 The `@scenario` decorator wraps an agent test function with simulation context. It accepts a `ScenarioConfig` worth of parameters and returns a `ScenarioResult`.
+
 
 ```python
 from attest.simulation import scenario, FRIENDLY_USER
@@ -55,6 +56,7 @@ def test_multi_turn_support(persona):
 
 The decorated function returns a `ScenarioResult`:
 
+
 ```python
 result = test_multi_turn_support()
 
@@ -67,6 +69,7 @@ result.outcome()  # "fail" | "skip" | "pass" over all turns
 ### Multi-Turn Flow
 
 When `max_turns > 1`, the scenario executes the wrapped function once per turn. Each turn produces an `AgentResult`. The persona is injected as a keyword argument if provided:
+
 
 ```python
 @scenario(persona=ADVERSARIAL_USER, max_turns=3, seed=42)
@@ -82,6 +85,7 @@ assert len(scenario_result.results) == 3
 ### Mock Tool Integration
 
 Mock tools registered via `mock_tools` are activated as a context variable during scenario execution. When `TraceBuilder.add_tool_call()` is called with a tool name that matches a registered mock, the mock function is invoked instead:
+
 
 ```python
 @scenario(mock_tools={
@@ -99,6 +103,7 @@ def test_refund_with_mocks():
 ## `@repeat` Decorator
 
 Run a test function multiple times and collect statistical results. Useful for measuring pass rates under non-deterministic conditions.
+
 
 ```python
 from attest import expect
@@ -138,6 +143,7 @@ Build each trial's result with `attest.inspect(chain)`, which never fails or ski
 
 Tag a function as a mock tool implementation. The decorated function retains a `_mock_tool_name` attribute for registration:
 
+
 ```python
 from attest.simulation import mock_tool
 
@@ -149,6 +155,7 @@ def mock_search(q: str) -> dict:
 ### MockToolRegistry
 
 For programmatic mock registration, use `MockToolRegistry` as a context manager:
+
 
 ```python
 from attest.simulation import MockToolRegistry
@@ -166,6 +173,7 @@ with registry:
 ## `@fault_inject` Decorator
 
 Add random failures and latency to any function. Useful for testing agent resilience to tool failures:
+
 
 ```python
 from attest.simulation import fault_inject
@@ -254,6 +262,7 @@ IMPATIENT_USER = Persona(
 
 Decorators compose naturally. `@scenario` provides the simulation context; `@repeat` wraps it for statistical runs:
 
+
 ```python
 from attest import expect
 from attest.simulation import scenario, repeat, ADVERSARIAL_USER
@@ -278,6 +287,7 @@ def test_adversarial_resilience(attest):
 
 Apply `@fault_inject` to individual tool implementations to simulate unreliable external services:
 
+
 ```python
 @fault_inject(error_rate=0.5, latency_jitter_ms=1000, seed=42)
 def unreliable_search(q: str) -> dict:
@@ -292,6 +302,7 @@ def test_agent_handles_search_failures():
 ### Scenario-Level Faults
 
 Use `fault_error_rate` and `fault_latency_jitter_ms` on `@scenario` to inject faults at the turn level rather than the tool level:
+
 
 ```python
 @scenario(fault_error_rate=0.1, fault_latency_jitter_ms=300, max_turns=10, seed=42)
@@ -312,6 +323,7 @@ def test_multi_turn_resilience():
 
 5. **Combine with assertions.** Simulation decorators aggregate verdicts. Return `attest.inspect(chain)` from the decorated function so each trial carries its assertion results; a chain that is never evaluated checks nothing:
 
+
 ```python
 from attest import expect
 from attest.simulation import scenario, repeat, ADVERSARIAL_USER
@@ -330,6 +342,7 @@ def test_adversarial_with_assertions(attest):
 ## TypeScript
 
 `@attest-ai/core` has the same helpers as functions instead of decorators. Seeded faults are deterministic within TypeScript for a fixed seed (the random sequence differs from Python's). `scenario` and `repeat` return async functions.
+
 
 ```ts
 import {

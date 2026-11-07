@@ -3,9 +3,10 @@ title: "Policies"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/policies.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/policies.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 A policy is the file that decides whether a report lets a pull request merge. `attest policy evaluate` reads a report-v2 and a policy, prints the violations as JSON, and exits with the verdict:
+
 
 ```bash
 uv run attest policy evaluate --policy attest.policy.yaml --report attest-report.json
@@ -33,7 +34,7 @@ not_evaluated: warn
 # Fail the gate when the report's total cost exceeds this many dollars.
 max_cost_usd: 0.50
 
-# Per-layer caps on failures (layers 1-8; 0 means any layer).
+# Per-layer caps on failures (keys 1–6, and 8 for plugin assertions; 0 means any layer).
 layers:
   3: { max_hard_fails: 0 }
   6: { max_soft_fails: 2, severity: warn }
@@ -70,6 +71,7 @@ A [replay miss](/sdk-guides/replay/#what-a-miss-says) is `not_evaluated` with re
 
 `min_mutation_score` gates on how well the suite's contracts catch behavior mutants of your fixtures ([mutation](/sdk-guides/mutation/)). Pass the `--json` output of `attest mutate`:
 
+
 ```bash
 uv run attest mutate tests/attest/fixtures/*.attest.json --contracts .attest/contracts --json > mutation.json
 uv run attest policy evaluate --policy attest.policy.yaml --report attest-report.json --mutation mutation.json
@@ -92,6 +94,7 @@ A report that records `tests_collected` above 0 and an empty `tests` array lost 
 ## Render the report for reviewers
 
 The engine renders report-v2 files for CI. Each command takes `--report` one or more times; several reports merge (a project that writes one report per runner passes them all). An unreadable or invalid report exits 2 with the error on stderr.
+
 
 ```bash
 # JUnit XML for CI test views: one suite per test file, a <failure> for a failed test,

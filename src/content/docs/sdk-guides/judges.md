@@ -3,7 +3,7 @@ title: "Judges"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/judges.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/judges.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/judges.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Layer 6 (`llm_judge`) asks a model to score agent output against a rubric. The engine runs the judge itself, so the provider is chosen with environment variables and every SDK gets the same behavior. Deterministic layers (1–4, 7) never call a judge; prefer them, and use a judge for what only a model can check.
 
@@ -18,6 +18,7 @@ Layer 6 (`llm_judge`) asks a model to score agent output against a rubric. The e
 | `acp` (local only) | Agent Client Protocol over stdio, through `ATTEST_JUDGE_ACP_COMMAND` | none: the agent's own login | optional label | none |
 
 Anthropic and Gemini have no built-in default model: a judge whose model silently changes is not the judge you calibrated, so `ATTEST_JUDGE_MODEL` is required and its absence is a startup error.
+
 
 ```bash
 export ATTEST_JUDGE_PROVIDER=anthropic
@@ -41,6 +42,7 @@ Anthropic requests use the model's default sampling (current Claude models rejec
 The agent starts with an explicit allowlist of environment variables, not a copy of yours, so unrelated credentials in variables (`GITHUB_TOKEN`, `AWS_SECRET_ACCESS_KEY`, API keys, CI tokens) never reach it and an exported key or endpoint switch cannot route it to API billing instead of your subscription. It receives `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, `TERM`, `LANG`, every `LC_*` except names that look like secrets (`LC_DEPLOY_TOKEN` is dropped), the login and configuration variables `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, and the proxy and CA settings `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY` (and their lowercase forms), `SSL_CERT_FILE` and `NODE_EXTRA_CA_CERTS`. On Windows it also receives `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ComSpec`, `PATHEXT`, `TEMP`, `TMP`, `HOMEDRIVE` and `HOMEPATH`; names are compared case-insensitively there. Everything else is dropped, including `OPENAI_*`, `ANTHROPIC_*`, `GEMINI_API_KEY`, `GOOGLE_API_KEY` and every `ATTEST_JUDGE_*` variable. If your agent needs another variable, wrap it in a launcher script that sets it.
 
 Three credential channels still reach the agent, and an agent tool steered by the output under test could read them: proxy URLs are passed unchanged, including any `user:pass@` in them; the agent's own session variables (`CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`) are passed by design; and `HOME` is passed, so credential files under it (`~/.aws`, `~/.npmrc`, `gh` configuration) stay readable. Use a proxy without embedded credentials and an agent configuration that denies tools (below) when the output under test is untrusted.
+
 
 ```bash
 export ATTEST_JUDGE_PROVIDER=acp
@@ -110,6 +112,7 @@ Every judge result carries `judge_metadata` with `provider` (`openai`, `anthropi
 ## Calibration is per model
 
 Agreement with human labels is a property of one judge model. `attest calibrate` stores labels keyed by judge provider and model as well as rubric, rubric version and prompt hash:
+
 
 ```bash
 attest calibrate --labels labels.jsonl --rubric default \
