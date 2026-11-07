@@ -3,9 +3,30 @@ title: "Adapter Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/framework-adapters.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/framework-adapters.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest adapters capture LLM interactions as `Trace` objects. Two adapter tiers exist, backed by a shared class hierarchy.
+
+Maturity of each adapter, generated from `attest-engine capabilities --json`:
+
+<!-- claims:adapter-tiers:start -->
+| Adapter | Python | TypeScript |
+| --- | --- | --- |
+| OpenAI | stable | stable |
+| Anthropic | stable | stable |
+| Manual | stable | stable |
+| Gemini | beta | beta |
+| Ollama | beta | beta |
+| LangChain | beta | beta |
+| CrewAI | beta | — |
+| OpenTelemetry | beta | beta |
+| Google ADK | experimental | — |
+| LlamaIndex | experimental | — |
+
+- **stable**: Covered by the parity and conformance suites; a change in behavior is a breaking change.
+- **beta**: Shipped and tested, but the interface or behavior can still change in a minor release.
+- **experimental**: Shipped without a stability commitment and without demonstrated demand; it can change or be removed in any release.
+<!-- claims:adapter-tiers:end -->
 
 ## Adapter Architecture
 
@@ -38,6 +59,7 @@ Every example below runs inside a pytest test that takes the `attest` fixture. `
 
 ### OpenAI
 
+
 ```python
 from openai import OpenAI
 from attest import OpenAIAdapter, AgentResult, expect
@@ -64,6 +86,7 @@ def test_explains_recursion(attest):
 
 ### Anthropic
 
+
 ```python
 from anthropic import Anthropic
 from attest import AnthropicAdapter, AgentResult, expect
@@ -89,6 +112,7 @@ def test_explains_recursion(attest):
 
 ### Gemini
 
+
 ```python
 from attest import GeminiAdapter
 
@@ -104,6 +128,7 @@ trace = adapter.trace_from_response(
 > **Migration note:** The `input_text` parameter is deprecated. Use `input_messages=[{"role": "user", "content": text}]` instead.
 
 ### Ollama
+
 
 ```python
 from attest import OllamaAdapter
@@ -121,11 +146,13 @@ trace = adapter.trace_from_response(
 
 ### LangChain
 
+
 ```bash
 uv add 'attest-ai[langchain]>=1.0.1'
 ```
 
 **Context manager usage:**
+
 
 ```python
 from attest import LangChainAdapter, AgentResult, expect
@@ -145,6 +172,7 @@ def test_research_agent_searches(attest):
 ```
 
 **Direct handler usage:**
+
 
 ```python
 from attest import LangChainCallbackHandler
@@ -168,11 +196,13 @@ trace = handler.build_trace()
 
 ### Google ADK
 
+
 ```bash
 uv add 'attest-ai[google-adk]>=1.0.1'
 ```
 
 **Async capture:**
+
 
 ```python
 import pytest
@@ -196,6 +226,7 @@ async def test_weather_agent_looks_up_weather(attest):
 
 **From pre-collected events:**
 
+
 ```python
 trace = GoogleADKAdapter.from_events(
     events=collected_events,
@@ -217,11 +248,13 @@ trace = GoogleADKAdapter.from_events(
 
 ### LlamaIndex
 
+
 ```bash
 uv add 'attest-ai[llamaindex]>=1.0.1'
 ```
 
 **Context manager usage:**
+
 
 ```python
 from attest import LlamaIndexInstrumentationHandler, AgentResult, expect
@@ -240,6 +273,7 @@ def test_rag_agent_answers_paris(attest):
 ```
 
 **Manual attach/detach:**
+
 
 ```python
 handler = LlamaIndexInstrumentationHandler(agent_id="rag-agent")
@@ -262,11 +296,13 @@ trace = handler.build_trace(query="...", response="...")
 
 ### OpenTelemetry
 
+
 ```bash
 uv add 'attest-ai[otel]>=1.0.1'
 ```
 
 **From collected spans or an OTLP/JSON export:**
+
 
 ```python
 from pathlib import Path
@@ -281,6 +317,7 @@ trace = OTelAdapter.from_otlp(Path("incident.otlp.json"))
 ```
 
 TypeScript (`@attest-ai/core`) has the same adapter; both methods are async because they resolve the engine:
+
 
 ```typescript
 import { readFileSync } from "node:fs";
@@ -297,6 +334,7 @@ The conversion runs in the engine (`attest-engine trace convert`), the same mapp
 ## Combining Provider and Framework Adapters
 
 A framework adapter captures LLM calls internally. Use both tiers only when you need separate assertions at each level:
+
 
 ```python
 from attest import OpenAIAdapter, LangChainAdapter, AgentResult, expect
@@ -323,6 +361,7 @@ def test_raw_call_and_agent_run(attest):
 ## Writing a Custom Provider Adapter
 
 Inherit `BaseProviderAdapter` and implement 4 extraction methods. The base class handles timestamp resolution, builder creation, LLM step construction, and metadata assembly.
+
 
 ```python
 from __future__ import annotations
@@ -358,6 +397,7 @@ class MistralAdapter(BaseProviderAdapter):
 
 **Optional override — `_build_output`:** Customize the trace output dict (default: `{"message": completion_text}`).
 
+
 ```python
 def _build_output(
     self, response: Any, completion_text: str, **metadata: Any
@@ -373,6 +413,7 @@ def _build_output(
 ## Writing a Custom Framework Adapter
 
 Inherit `BaseAdapter` for shared utilities. Framework adapters have diverse input mechanics, so there is no template method — implement your own capture method.
+
 
 ```python
 from __future__ import annotations

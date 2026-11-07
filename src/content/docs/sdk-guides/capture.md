@@ -3,13 +3,14 @@ title: "Capture: turn a run into a regression fixture"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/capture.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/capture.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/capture.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 `attest capture` runs your agent once, records what it did (its trace and every model call it made), removes secrets, and writes a fixture: `tests/attest/fixtures/<name>.attest.json`. It drafts deterministic contracts from the run, checks them against it, and writes a test file that runs those contracts. Capture an incident and you get a test that reproduces it; capture a good run and you get a test that keeps it good.
 
 The command runs in `attest-engine`; `uv run attest capture …` and `npx attest capture …` forward to the engine of the installed SDK version and then draft the test file in that SDK's language.
 
 ## Capture a command
+
 
 ```bash
 uv run attest capture --name inc-1042 --expect-fail -- make incident
@@ -82,6 +83,7 @@ For a fixture captured from a command, the test runs the agent again. It writes 
 
 `COMMAND` is what runs, because the fixture is a file a pull request can change: review the literal with the test. The test refuses to run (it fails with a message naming both commands) when the fixture's `source.command` differs from `COMMAND`, and when the command has redacted or templated arguments, as `--refresh` does:
 
+
 ```python
 FIXTURE = Path(__file__).parent / "fixtures/inc-1042.attest.json"
 RUN_DIR = Path(__file__).parent / "../.."  # where `attest capture` ran
@@ -114,9 +116,44 @@ The test needs the command to run unchanged: it uses the working directory `atte
 
 `attest capture --refresh inc-1042` prints the command recorded in the fixture (`source.command`), asks for confirmation (`y` at a terminal; without one, `--yes`), then runs it, with the flags it was captured with (`--expect-fail` included), and overwrites the fixture. **Review the printed command before confirming a fixture you did not record:** the fixture is a file in your repository, and whoever can change it can change the command that `--refresh` runs. Run it from the directory the original capture ran in, with the environment the command needs. It refuses with an explanation when the command's arguments were redacted (a secret passed as an argument), and for fixtures captured with `--from` or in process, which have no command; re-run those captures yourself. It also refuses a fixture with a `world` section, because a refresh would drop the world's state: re-run `attest capture --name inc-1042 --world <world.yaml> …` instead. A replay miss names this command (see `attest-engine replay`).
 
+### Review what the refresh changed
+
+A refresh replaces the fixture, and a byte diff of the JSON hides what mattered. After the capture summary, `--refresh` compares the fixture it replaced with the one it wrote, exchange by exchange (paired by position; extra or missing exchanges are reported as added or removed), and prints what changed in the requests the agent sent. Edit the system prompt, refresh, and the changed lines show per exchange:
+
+```text
+refresh refund: 1 of 1 exchanges changed
+  exchange 0 (openai chat_completions gpt-4.1): changed
+    system prompt:
+      - You refund once.
+      + You refund twice.
+```
+
+Unchanged lines are not printed. The comparison covers the system prompt (changed lines only), tool schemas (tools added, removed or changed, with the changed JSON paths), messages and tool results (added, removed or changed, with role and the changed lines), the model and the request parameters:
+
+```text
+refresh refund: 1 of 1 exchanges changed
+  exchange 0 (openai chat_completions gpt-5.4): changed
+    model: gpt-4.1 -> gpt-5.4
+    messages:
+      ~ user [0]
+        - Refund order O-2077.
+        + Refund order O-2077 in full.
+```
+
+Chat Completions, Responses and Messages requests are normalized to the same form. Each block prints at most 20 lines, then `... N more changed lines elided`. Responses and the trace are not compared. The diff is read from the redacted fixtures as written and every string passes through the capture redactor again, so a secret in a prompt is never printed; control characters are escaped, so a line break in a name cannot forge a diff line.
+
+A refresh that changes nothing prints one line, and the fixture keeps its bytes:
+
+```text
+refresh refund: no semantic change
+```
+
+The report goes to stderr. With `--json`, the result gains a `diff` object (`cli/capture.schema.json`): `changed` and `exchanges`, which lists only the exchanges that differ. Each has `index`, `change` (`added`, `removed` or `changed`), `label` (provider, API and model) and any of `model` (`old`, `new`), `system` (`{op, text}` lines, `-` old and `+` new), `tools`, `messages` and `tool_results` (`index`, `change`, `role`, `lines`, and `fields` for changed fields the lines do not show), `params` and `other` (changed JSON paths). An unchanged refresh reports `{"changed": false, "exchanges": []}`.
+
 ## Capture in process
 
 When the agent runs inside your own process (a notebook, a script, a test), capture a block of code:
+
 
 ```python
 import attest
@@ -127,6 +164,7 @@ with attest.record("inc-1042", expect_fail=True) as capture:
 
 print(capture.result.fixture, capture.result.verified)
 ```
+
 
 ```ts
 import { record } from "@attest-ai/core";
@@ -148,6 +186,7 @@ If the block raises, the capture is abandoned and no fixture is written. A fixtu
 Options: `out_dir` / `outDir` (default `tests/attest/fixtures`), `expect_fail` / `expectFail`, `agent_id` / `agentId`, `emit_test` / `emitTest` (default true), `engine_path` / `enginePath`, `world` (a `world.yaml` to host for the block; see [world fixtures](/sdk-guides/world-fixtures/)), and in TypeScript `flush`. `record()` sets process-wide variables, so captures cannot overlap; a second `record()` while one runs raises `CaptureError`.
 
 ## Capture from an export
+
 
 ```bash
 uv run attest capture --name inc-1042 --expect-fail --from incidents/INC-1042/trace.py.otlp.json
@@ -172,6 +211,7 @@ All of them read `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` from the environment,
 
 **Pydantic AI.** Pass the native instrumentation capability an OTLP/HTTP tracer provider and pin the instrumentation version to 5:
 
+
 ```python
 provider = TracerProvider()
 provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
@@ -181,6 +221,7 @@ agent = Agent(OpenAIChatModel("gpt-4.1", provider=OpenAIProvider()), capabilitie
 provider.force_flush()
 ```
 
+
 ```bash
 uv add "pydantic-ai-slim[openai]" opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 ```
@@ -188,6 +229,7 @@ uv add "pydantic-ai-slim[openai]" opentelemetry-sdk opentelemetry-exporter-otlp-
 Version 3 also works. Version 2 names tool spans `running tool` and keeps arguments outside the GenAI keys, so the drafted contracts lose per-id cardinality.
 
 **Vercel AI SDK.** AI SDK 7 needs the integration registered, in addition to `experimental_telemetry`:
+
 
 ```ts
 const provider = new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(new OTLPTraceExporter())] });
@@ -197,6 +239,7 @@ registerTelemetry(new OpenTelemetry()); // from @ai-sdk/otel
 await provider.forceFlush();
 ```
 
+
 ```bash
 npm install ai @ai-sdk/openai @ai-sdk/otel @opentelemetry/sdk-trace-node @opentelemetry/exporter-trace-otlp-http
 ```
@@ -204,6 +247,7 @@ npm install ai @ai-sdk/openai @ai-sdk/otel @opentelemetry/sdk-trace-node @opente
 Tested with `@opentelemetry/sdk-trace-node` 2.12.0 and `@opentelemetry/exporter-trace-otlp-http` 0.219.0; newer exporter releases require an OTel API the 2.12.0 provider does not accept. The legacy integration (`LegacyOpenTelemetry`, spans named `ai.generateText` and `ai.toolCall`) is not supported: it records no `gen_ai.operation.name`, so capture finds no model or tool step and refuses to verify.
 
 **Mastra.** Register an `OtelExporter` with a custom OTLP/HTTP endpoint and flush the observability instance:
+
 
 ```ts
 const observability = new Observability({ configs: { otel: { serviceName: "my-agent", exporters: [new OtelExporter({
@@ -215,6 +259,7 @@ const mastra = new Mastra({ agents: { agent }, observability });
 await observability.flush();
 ```
 
+
 ```bash
 npm install @mastra/core @mastra/observability @mastra/otel-exporter @ai-sdk/openai
 ```
@@ -223,13 +268,20 @@ Use `createOpenAI().chat(...)` for the model, which Mastra's exporter reports as
 
 **OpenAI Agents SDK (Python).** Use the OpenTelemetry project's instrumentation, not OpenInference, and remove the SDK's hosted trace processors first:
 
+
 ```python
 set_trace_processors([])
 OpenAIAgentsInstrumentor().instrument(tracer_provider=provider, capture_message_content=True)
 ```
 
+
 ```bash
 uv add openai-agents opentelemetry-instrumentation-openai-agents-v2 opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
+
+Then set:
+
+```bash
 export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true OTEL_INSTRUMENTATION_OPENAI_AGENTS_CAPTURE_METRICS=false
 ```
 
@@ -247,6 +299,7 @@ Without `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` Claude Code exports metrics and lo
 
 **LangGraph (Python).** Use LangSmith in OTel mode with a tracer provider you own, so spans go to the capture receiver and nowhere else:
 
+
 ```python
 client = Client(tracing_mode="otel", otel_tracer_provider=provider)
 with tracing_context(enabled=True, client=client):
@@ -254,8 +307,14 @@ with tracing_context(enabled=True, client=client):
 provider.force_flush()
 ```
 
+
 ```bash
 uv add langgraph langchain-openai langsmith opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
+
+Then set:
+
+```bash
 export LANGSMITH_TRACING=true LANGSMITH_TRACING_MODE=otel LANGSMITH_API_KEY=unused
 ```
 
@@ -273,6 +332,8 @@ A fixture follows `proto/attest/v1/fixture-v1.schema.json`:
 
 | Field | Holds |
 | --- | --- |
+| `fixture_version` | the fixture format version, `1` |
+| `name` | the fixture name |
 | `source` | `kind` (`command`, `in_process`, `otlp_file`), `replay_capable`, and for a command its arguments and exit code |
 | `trace` | the run as an Attest trace (schema version 2), as `attest trace convert` writes it |
 | `exchanges` | every model call in request order: provider, API (`chat_completions`, `responses`, `messages`, `other`), path, request body, response status, content type and body (the JSON value, or the event-stream text for a streamed call), and its `key` |
@@ -294,6 +355,7 @@ Request headers, which carry the API key, are never recorded. Everywhere else in
 - the secret values in the `.env` file of the working directory. Capture reads it with dotenv semantics (`export NAME=value`, quoted and multi-line values, `#` comments) and applies the environment name rule above, so `OPENAI_API_KEY=…` and a `DATABASE_URL` with a password become redaction targets. The values are used only to find secrets: they are never written to the fixture. A missing `.env` is ignored. **Behavior change:** `attest capture` and `attest capture --check-redaction` fail when `.env` is not a regular file (a symlink to one is followed) or is larger than 1 MiB, rather than capture without its secrets. `attest replay` reads it for the same purpose when it redacts a live request before matching; it warns once on stderr and ignores an unusable `.env`.
 
 Check a fixture before committing it, for example in CI with the same secrets in the environment:
+
 
 ```bash
 uv run attest capture --check-redaction tests/attest/fixtures/inc-1042.attest.json

@@ -3,13 +3,14 @@ title: "From first test to merge gate"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/merge-gate.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/merge-gate.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 This guide takes a project from no tests to a GitHub Actions job that blocks merges on agent regressions. No API key, model or network access is needed: the sample test checks a recorded agent run with deterministic assertions (layers 1–4).
 
 ## 1. Scaffold a passing test
 
 Python:
+
 
 ```bash
 uv add "attest-ai>=1.0.1" pytest
@@ -18,6 +19,7 @@ uv run pytest            # 1 passed
 ```
 
 TypeScript:
+
 
 ```bash
 npm install -D "@attest-ai/core@>=1.0.1" "@attest-ai/vitest@>=1.0.1" "vitest@^4"
@@ -80,6 +82,7 @@ The report follows `proto/attest/v1/report-v2.schema.json`:
 `file` is relative to the test runner's root directory (pytest `rootdir`, Vitest `root`) with forward slashes; `line` is the line of the test definition (`def test_…` / `it(…)`). The pytest process exits with the test result as usual; writing the report never changes it.
 
 ## 4. Evaluate the policy
+
 
 ```bash
 uv run attest policy evaluate --report attest-report.json --policy attest.policy.yaml

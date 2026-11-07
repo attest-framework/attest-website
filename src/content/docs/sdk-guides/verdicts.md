@@ -3,7 +3,7 @@ title: "Verdicts: pass, fail, skip"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/verdicts.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/verdicts.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 Attest reports one of four statuses for every assertion you request, and turns them into a test outcome only after the whole batch has run.
 
@@ -48,6 +48,7 @@ test_refund.py::test_judge_only SKIPPED (not evaluated: provider_not_configured)
 
 ## `evaluate()` and `inspect()`
 
+
 ```python
 def test_refund(attest):
     result = refund_agent(order_id="ORD-123")
@@ -55,6 +56,7 @@ def test_refund(attest):
 ```
 
 `attest.evaluate(chain)` enforces the outcome: it fails or skips the running test. `attest.inspect(chain)` returns the same `AgentResult` without enforcing, for trial loops and custom checks:
+
 
 ```python
 from attest.simulation import repeat
@@ -71,6 +73,7 @@ def test_refund_reliability(attest):
 `attest.enforce(result)` applies the same rules (and `--attest-strict`) to an `AgentResult` from `inspect()`, a `RepeatResult` or a `ScenarioResult`: any failing trial fails the test with that trial's diagnostics; otherwise any not-evaluated trial skips it with the summed reasons, for example `not evaluated: simulation ×5`. A trial with soft failures counts as passing; passed and skipped tests with soft failures are listed in the "Attest soft failures" session summary.
 
 ### Vitest
+
 
 ```ts
 import { evaluate, inspect } from "@attest-ai/vitest";

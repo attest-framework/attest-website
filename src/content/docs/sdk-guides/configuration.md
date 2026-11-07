@@ -3,7 +3,7 @@ title: "Engine configuration"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/configuration.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/configuration.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
 The engine reads its configuration from environment variables when it starts. An invalid provider, URL or integer setting stops the engine with an error naming the variable. Since 1.1.0 that includes `ATTEST_EVAL_CONCURRENCY`, `ATTEST_EMBEDDING_CACHE_MAX_MB`, `ATTEST_JUDGE_CACHE_MAX_MB`, `ATTEST_HISTORY_MAX_ROWS`, `ATTEST_HISTORY_MAX_AGE_DAYS` and `ATTEST_JUDGE_TIMEOUT_S`: a value that is not a positive integer makes the engine and `attest-engine doctor` exit 1, naming every offending variable. `ATTEST_JUDGE_META_EVAL` keeps its historical behavior: it is enabled only by the exact value `true`.
 
@@ -32,6 +32,7 @@ Each published `attest-ai` wheel and sdist and the `@attest-ai/core` tarball car
 
 Every release binary also carries a GitHub build-provenance attestation, created by the `attest-engine` job of the release workflow. To check a binary you downloaded yourself, pin the workflow and the tag, not just the repository:
 
+
 ```bash
 gh attestation verify attest-engine-linux-amd64 \
   --repo attest-framework/attest \
@@ -42,6 +43,7 @@ gh attestation verify attest-engine-linux-amd64 \
 Passing means the file's SHA-256 matches an attestation signed by `release.yml` in `attest-framework/attest` on the `v<VERSION>` tag. Only repository admins can create `v*` tags, and the release workflow refuses a tag whose commit is not on `main`; to check that yourself, confirm the attested commit (`gh attestation verify … --format json`) is reachable from `main`. The attestation is created after the release is published, so a binary from a release that was never published has none. It does not tell you the source at that tag is free of bugs, only where and how the binary was built. `--repo` alone accepts an attestation from any workflow in the repository on any ref, so it is not enough on its own. The SDKs do not run this check; they compare against the table shipped in the package.
 
 The `attest` command (`uv run attest`, `npx attest`) implements `attest init` itself and forwards every other command to the version-checked engine, passing arguments, output and exit code through unchanged:
+
 
 ```bash
 attest --help                     # SDK commands, plus engine commands when one is installed

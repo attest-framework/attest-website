@@ -3,9 +3,9 @@ title: "Multi-Agent Testing Guide"
 editUrl: "https://github.com/attest-framework/attest/edit/main/docs/guides/multi-agent.md"
 ---
 
-<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.1.0-rc.3 (52cc9b494c2ad8390aef17d40ff60484540b6603) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
+<!-- Synced from attest-framework/attest docs/guides/multi-agent.md at v1.1.0-rc.4 (5a68fe57486db53ec5c36bbe68a1b79df82ccfa1) by scripts/sync-release.mjs. Edit the source in attest, not this file. -->
 
-Attest provides first-class support for testing multi-agent systems through hierarchical trace trees, cross-agent assertions, and delegation tracking. All multi-agent assertions are Layer 7 — deterministic, free, and instant.
+Attest provides first-class support for testing multi-agent systems through hierarchical trace trees, cross-agent assertions, and delegation tracking. All multi-agent assertions are layer 3 (trace) checks — deterministic, free, and instant.
 
 ## Trace Tree Model
 
@@ -65,6 +65,7 @@ trace = parent.build()
 
 `delegate()` raises `RuntimeError` if called outside an active `TraceBuilder` context:
 
+
 ```python
 # This raises RuntimeError:
 # "delegate() must be used within an Agent.run() context. No active TraceBuilder found."
@@ -75,6 +76,7 @@ with delegate("sub-agent") as child:
 ## TraceTree API
 
 Build a `TraceTree` from an `AgentResult` or directly from a `Trace`:
+
 
 ```python
 from attest.trace_tree import TraceTree
@@ -92,6 +94,7 @@ tree = TraceTree(root=trace)
 
 All `agent_id` values in the tree, depth-first order:
 
+
 ```python
 tree.agents  # ["orchestrator", "researcher", "writer"]
 ```
@@ -100,6 +103,7 @@ tree.agents  # ["orchestrator", "researcher", "writer"]
 
 Maximum nesting depth. Root with no sub-agents = 0:
 
+
 ```python
 tree.depth  # 2 (orchestrator -> researcher -> writer)
 ```
@@ -107,6 +111,7 @@ tree.depth  # 2 (orchestrator -> researcher -> writer)
 #### `delegations -> list[tuple[str, str]]`
 
 All (parent_agent_id, child_agent_id) delegation pairs:
+
 
 ```python
 tree.delegations
@@ -117,6 +122,7 @@ tree.delegations
 
 Find a sub-trace by agent_id:
 
+
 ```python
 researcher = tree.find_agent("researcher")
 researcher.output  # {"message": "Policy found: 30-day window."}
@@ -125,6 +131,7 @@ researcher.output  # {"message": "Policy found: 30-day window."}
 #### `flatten() -> list[Trace]`
 
 All traces in depth-first order:
+
 
 ```python
 all_traces = tree.flatten()
@@ -135,6 +142,7 @@ all_traces = tree.flatten()
 
 All `tool_call` steps across the entire tree:
 
+
 ```python
 tools = tree.all_tool_calls()
 [t.name for t in tools]  # ["fetch_context", "search_web", "write_doc"]
@@ -144,6 +152,7 @@ tools = tree.all_tool_calls()
 
 Sum metrics across all agents in the tree:
 
+
 ```python
 tree.aggregate_tokens   # Total tokens across all agents
 tree.aggregate_cost     # Total cost_usd across all agents
@@ -152,13 +161,14 @@ tree.aggregate_latency  # Total latency_ms across all agents
 
 ## Cross-Agent Assertions
 
-All multi-agent assertions use `TYPE_TRACE_TREE` (Layer 7) and are evaluated by the engine's `TraceTreeEvaluator`.
+All multi-agent assertions use `TYPE_TRACE_TREE` (layer 3) and are evaluated by the engine's `TraceTreeEvaluator`.
 
 The snippets below run inside a pytest test that takes the `attest` fixture, with the agent's `AgentResult` in `result`. `attest.evaluate(chain)` runs every assertion in the chain and fails the test on a hard failure; a chain that is never passed to `evaluate()` checks nothing.
 
 ### `agent_called(agent_id)`
 
 Assert a specific agent was invoked somewhere in the trace tree:
+
 
 ```python
 attest.evaluate(expect(result).agent_called("researcher").agent_called("writer"))
@@ -168,6 +178,7 @@ attest.evaluate(expect(result).agent_called("researcher").agent_called("writer")
 
 Assert the trace tree does not exceed a maximum nesting depth:
 
+
 ```python
 attest.evaluate(expect(result).delegation_depth(3))  # Max 3 levels deep
 ```
@@ -175,6 +186,7 @@ attest.evaluate(expect(result).delegation_depth(3))  # Max 3 levels deep
 ### `agent_output_contains(agent_id, value)`
 
 Assert a sub-agent's output contains a specific string:
+
 
 ```python
 attest.evaluate(
@@ -187,6 +199,7 @@ attest.evaluate(
 ### `cross_agent_data_flow(from_agent, to_agent, field)`
 
 Assert that a field from one agent's output appears in another agent's input:
+
 
 ```python
 attest.evaluate(
@@ -203,6 +216,7 @@ The engine extracts `field` from `from_agent`'s output JSON, serializes it, and 
 ### `follows_transitions(transitions)`
 
 Assert that all agent delegations in the trace tree match the allowed transition pairs:
+
 
 ```python
 attest.evaluate(
@@ -222,6 +236,7 @@ This is useful for enforcing choreography — ensuring agents only delegate to a
 
 Assert the total cost across all agents is under a threshold:
 
+
 ```python
 attest.evaluate(expect(result).aggregate_cost_under(0.10))
 ```
@@ -230,6 +245,7 @@ attest.evaluate(expect(result).aggregate_cost_under(0.10))
 
 Assert the total token usage across all agents is under a threshold:
 
+
 ```python
 attest.evaluate(expect(result).aggregate_tokens_under(5000))
 ```
@@ -237,6 +253,7 @@ attest.evaluate(expect(result).aggregate_tokens_under(5000))
 ### Soft Failures
 
 All multi-agent assertions support the `soft` parameter. Soft failures produce `soft_fail` status instead of `hard_fail`, allowing CI to warn without blocking:
+
 
 ```python
 attest.evaluate(
@@ -249,6 +266,7 @@ attest.evaluate(
 ## Choreography Validation
 
 Choreography validation ensures agents interact according to a defined protocol. Combine `follows_transitions` with other assertions to fully validate multi-agent workflows. `run_my_pipeline` stands for your own agent; for `cross_agent_data_flow` the trace must record the receiving agent's input with the field (`writer.set_input(findings=...)` on a `delegate()` sub-trace):
+
 
 ```python
 from attest import expect
@@ -340,7 +358,7 @@ def test_research_pipeline(attest):
     def trial(persona):
         result = run_research_pipeline("AI testing frameworks")
 
-        # Layer 7: Multi-agent assertions
+        # Layer 3: Multi-agent assertions
         return attest.inspect(
             expect(result)
             .agent_called("researcher")
@@ -378,11 +396,12 @@ Total cost: $0.0150
 
 ## Temporal Assertions
 
-Temporal assertions verify the execution order and timing of agents within a trace tree. They are Layer 7 — deterministic, free, and instant. Each assertion requires that `Step` objects carry `started_at` and `ended_at` timestamps (populated automatically by framework adapters and `TraceBuilder` methods that accept timing arguments).
+Temporal assertions verify the execution order and timing of agents within a trace tree. They are layer 3 checks — deterministic, free, and instant. Each assertion requires that `Step` objects carry `started_at` and `ended_at` timestamps (populated automatically by framework adapters and `TraceBuilder` methods that accept timing arguments).
 
 ### `agent_ordered_before(a, b)`
 
 Assert that agent `a` completed before agent `b` started. Use this to enforce sequential execution guarantees.
+
 
 ```python
 # researcher must complete before writer begins
@@ -398,6 +417,7 @@ Fails if:
 
 Assert that agents `a` and `b` executed concurrently — their time ranges intersect. Use this to verify parallel execution in fan-out pipelines.
 
+
 ```python
 # data-fetcher and context-loader must run in parallel
 attest.evaluate(expect(result).agents_overlap("data-fetcher", "context-loader"))
@@ -411,6 +431,7 @@ Fails if:
 ### `agent_wall_time_under(agent_id, max_ms)`
 
 Assert that a specific agent's wall-clock duration is under `max_ms` milliseconds. Use this to enforce per-agent performance budgets.
+
 
 ```python
 # researcher must complete within 3 seconds
@@ -427,6 +448,7 @@ Wall time is `ended_at - started_at` for the agent's root trace.
 ### `ordered_agents(groups)`
 
 Assert that agents executed in a defined pipeline order. `groups` is a list of lists; agents within the same group ran concurrently, and each group completed before the next group started.
+
 
 ```python
 # Sequential pipeline: orchestrator → [researcher, context-loader] → writer
