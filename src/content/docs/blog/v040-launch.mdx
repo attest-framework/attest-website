@@ -3,6 +3,8 @@ title: "Attest: Test Your AI Agents Like You Test Your Code"
 description: "Introducing Attest v0.4.0 — an open-source testing framework for AI agents with an 8-layer assertion pipeline."
 ---
 
+*Edited 2026-11-07: layer names updated to the current six-layer model.*
+
 :::note[Historical release note]
 Published 2026-02-22 for v0.4.0. Layer numbering, adapter counts and comparisons below describe v0.4.0, not the current release. For the current layers and adapters see the [overview](/overview/).
 :::
@@ -141,7 +143,7 @@ The engine stores result history in SQLite and computes sigma-based drift detect
 
 ## Simulation: Test What Hasn't Happened Yet
 
-Layer 7 is a simulation runtime with mock tools and persona-driven assertions:
+Simulation is a runtime mode with mock tools and persona-driven assertions, not an evaluated assertion layer:
 
 ```python
 from attest import agent, expect
@@ -177,7 +179,7 @@ Test edge cases, adversarial inputs, and failure modes without hitting real APIs
 
 ## Multi-Agent Testing
 
-Layer 8 handles the growing reality of multi-agent systems:
+The current model has six evaluated layers plus plugins; trace-tree and multi-agent assertions belong to layer 3:
 
 ```python
 from attest import agent, expect, delegate, TraceTree
