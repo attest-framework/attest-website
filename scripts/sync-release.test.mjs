@@ -67,6 +67,8 @@ describe("release sync snippet markers", () => {
     "<!-- snippet: continue --><script>alert('unsafe')</script><!-- -->",
     "<!-- snippet: continue -->\n<div>unsafe</div>",
     "<!-- snippet: continue -->\n<script>alert('unsafe')</script>",
+    "Text before <!-- snippet: continue -->",
+    "<!-- snippet: continue --> text after",
   ]) {
     it(`still rejects raw HTML: ${JSON.stringify(html)}`, () => {
       sync(html, (result) => {

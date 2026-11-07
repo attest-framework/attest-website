@@ -51,8 +51,11 @@ function stripSnippetMarkers(markdown) {
     if (node.type === "html") {
       let offset = node.position.start.offset;
       for (const line of node.value.split("\n")) {
-        if (SNIPPET_MARKER_PATTERN.test(line)) {
-          removals.push({ start: offset, end: offset + line.length });
+        const start = markdown.lastIndexOf("\n", offset - 1) + 1;
+        const newline = markdown.indexOf("\n", offset);
+        const end = newline === -1 ? markdown.length : newline;
+        if (SNIPPET_MARKER_PATTERN.test(markdown.slice(start, end))) {
+          removals.push({ start, end });
         }
         offset += line.length + 1;
       }
